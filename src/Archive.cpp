@@ -276,20 +276,20 @@ void Rarc::SaveToFile(std::string path){
     // Write Header
     headerStream.writeUInt32(0x52415243);
     headerStream.writeUInt32(archiveSizes["total"]);
-    headerStream.writeUInt32(0x20);
-    headerStream.writeUInt32(fileDataChunk - archiveData);
+    headerStream.writeUInt32(fileSystemChunk - archiveData);
+    headerStream.writeUInt32(fileDataChunk - fileSystemChunk);
     headerStream.writeUInt32(fileDataStream.getSize());
-    headerStream.writeUInt32(fileDataStream.getSize());
-    headerStream.writeUInt32(0);
-    headerStream.writeUInt32(0);
+    headerStream.writeUInt32(0); //TODO: mram flag!
+    headerStream.writeUInt32(0); //TODO: aram flag!
+    headerStream.writeUInt32(0); // pad
 
     //Write FS Header
     fileSystemStream.writeUInt32(mDirectories.size());
-    fileSystemStream.writeUInt32(0x20);
+    fileSystemStream.writeUInt32(dirChunk - fileSystemChunk);
     fileSystemStream.writeUInt32(currentFileIndex);
-    fileSystemStream.writeUInt32(0x20 + (0x10 * mDirectories.size()));
+    fileSystemStream.writeUInt32(fileChunk - fileSystemChunk);
     fileSystemStream.writeUInt32(stringTableStream.getSize());
-    fileSystemStream.writeUInt32(totalArchiveSize);
+    fileSystemStream.writeUInt32(strTableChunk - fileSystemChunk);
     fileSystemStream.writeUInt16(currentFileIndex);
     fileSystemStream.writeUInt8(0);
     fileSystemStream.writeUInt8(0);
