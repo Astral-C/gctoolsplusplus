@@ -2,14 +2,14 @@
 #include <algorithm>
 #include <map>
 
-#define calcPad32(x) (x + (32-1)) & ~(32-1)
+#define calcPad32(x) ((x + (32-1)) & ~(32-1))
 
 namespace Archive {
 
 const char ROOT_ID[5] = "ROOT";
 
 void padTo32(bStream::CStream* stream, size_t size){
-    for(int i = 0; i < (size + (32-1)) & ~(32-1); i++) stream->writeUInt8(0);
+    for(int i = 0; i < calcPad32(size); i++) stream->writeUInt8(0);
 }
 
 uint16_t Hash(std::string str){
