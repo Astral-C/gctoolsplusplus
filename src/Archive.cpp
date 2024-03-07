@@ -260,7 +260,7 @@ void Rarc::SaveToFile(std::string path){
 
             std::string fileName = file->GetName();
             fileStream.writeUInt16(stringTable[fileName]);
-            fileStream.writeUInt32(fileDataStream.tell() - 0x20);
+            fileStream.writeUInt32(fileDataStream.tell());
             fileStream.writeUInt32(file->GetSize());
             fileStream.writeUInt32(0x00);
 
@@ -289,7 +289,7 @@ void Rarc::SaveToFile(std::string path){
     fileSystemStream.writeUInt32(currentFileIndex);
     fileSystemStream.writeUInt32(0x20 + (0x10 * mDirectories.size()));
     fileSystemStream.writeUInt32(stringTableStream.getSize());
-    fileSystemStream.writeUInt32(totalArchiveSize - 0x20);
+    fileSystemStream.writeUInt32(totalArchiveSize);
     fileSystemStream.writeUInt16(currentFileIndex);
     fileSystemStream.writeUInt8(0);
     fileSystemStream.writeUInt8(0);
