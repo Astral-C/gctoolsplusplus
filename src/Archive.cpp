@@ -1,16 +1,9 @@
 #include "Archive.hpp"
+#include "Util.hpp"
 #include <algorithm>
 #include <map>
 
-#define calcPad32(x) (x + (32-1)) & ~(32-1)
-
 namespace Archive {
-
-const char ROOT_ID[5] = "ROOT";
-
-void padTo32(bStream::CStream* stream, size_t size){
-    for(int i = 0; i < (size + (32-1)) & ~(32-1); i++) stream->writeUInt8(0);
-}
 
 uint16_t Hash(std::string str){
     uint16_t hash = 0;
@@ -30,7 +23,7 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
     
     std::map<std::string, bool> isUniqueStr;
 
-    uint32_t dirEntrySize = 0;
+    uint32_t dirEntrySize = 0x00; //??
     uint32_t fileEntrySize = 0;
     uint32_t fileDataSize = 0;
     uint32_t strTableSize = 5; // Accounts for .\0 and ..\0 strs
@@ -56,13 +49,13 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
             } 
 
             fileEntrySize += 0x14;
-            fileDataSize += calcPad32(file->GetSize());
+            fileDataSize += file->GetSize();
         }
     }
 
-    size += dirEntrySize + fileEntrySize + fileDataSize + calcPad32(strTableSize);
+    size += Util::PadTo32(dirEntrySize) + Util::PadTo32(fileEntrySize) + fileDataSize + Util::PadTo32(strTableSize);
 
-    return {{"total", calcPad32(size)}, {"dirEntries", dirEntrySize}, {"fileEntries", fileEntrySize}, {"fileData", fileDataSize}, {"strTable", calcPad32(strTableSize)}};
+    return {{"total", Util::PadTo32(size)}, {"dirEntries", Util::PadTo32(dirEntrySize)}, {"fileEntries", Util::PadTo32(fileEntrySize)}, {"fileData", fileDataSize}, {"strTable", Util::PadTo32(strTableSize)}};
 }
 
 
@@ -206,6 +199,41 @@ void Rarc::SaveToFile(std::string path){
         dirStream.writeUInt16(folder->GetFileCount() + 2);
         dirStream.writeUInt32(currentFileIndex);
 
+        // Write Subdirectory entries
+        for(auto subdir : folder->GetSubdirectories()){
+            auto subdirIter = std::find(mDirectories.begin(), mDirectories.end(), subdir);
+            fileStream.writeUInt16(0xFFFF);
+            fileStream.writeUInt16(Hash(subdir->GetName()));
+            fileStream.writeUInt8(0x02);
+            fileStream.writeUInt8(0x00);
+
+            std::string subdirName = subdir->GetName();
+
+            fileStream.writeUInt16(stringTable[subdirName]); // ????
+            fileStream.writeUInt32(subdirIter - mDirectories.begin());
+            fileStream.writeUInt32(0x10);
+            fileStream.writeUInt32(0x00);
+            currentFileIndex++;
+        }
+
+        // Write File entries
+        for(auto file : folder->GetFiles()){
+            fileStream.writeUInt16(currentFileIndex);
+            fileStream.writeUInt16(Hash(file->GetName()));
+            fileStream.writeUInt8(0x01 | 0x10);
+            fileStream.writeUInt8(0x00);
+
+            std::string fileName = file->GetName();
+            fileStream.writeUInt16(stringTable[fileName]);
+            fileStream.writeUInt32(fileDataStream.tell());
+            fileStream.writeUInt32(file->GetSize());
+            fileStream.writeUInt32(0x00);
+
+            fileDataStream.writeBytes((char*)file->GetData(), file->GetSize());
+
+            currentFileIndex++;
+        }
+
         // Write .
         // [v]: perhaps this should be put into a function of some kind? unsure...
         fileStream.writeUInt16(0xFFFF);
@@ -233,42 +261,6 @@ void Rarc::SaveToFile(std::string path){
         fileStream.writeUInt32(0x00);
 
         currentFileIndex += 2; // account for . and .. file entries
-
-        // Write Subdirectory entries
-        for(auto subdir : folder->GetSubdirectories()){
-            auto subdirIter = std::find(mDirectories.begin(), mDirectories.end(), subdir);
-            fileStream.writeUInt16(0xFFFF);
-            fileStream.writeUInt16(Hash(subdir->GetName()));
-            fileStream.writeUInt8(0x02);
-            fileStream.writeUInt8(0x00);
-
-            std::string subdirName = subdir->GetName();
-
-            fileStream.writeUInt16(stringTable[subdirName]); // ????
-            fileStream.writeUInt32(subdirIter - mDirectories.begin());
-            fileStream.writeUInt32(0x10);
-            fileStream.writeUInt32(0x00);
-            currentFileIndex++;
-        }
-
-        // Write File entries
-        for(auto file : folder->GetFiles()){
-            fileStream.writeUInt16(currentFileIndex);
-            fileStream.writeUInt16(Hash(file->GetName()));
-            fileStream.writeUInt8(0x01);
-            fileStream.writeUInt8(0x00);
-
-            std::string fileName = file->GetName();
-            fileStream.writeUInt16(stringTable[fileName]);
-            fileStream.writeUInt32(fileDataStream.tell());
-            fileStream.writeUInt32(file->GetSize());
-            fileStream.writeUInt32(0x00);
-
-            fileDataStream.writeBytes((char*)file->GetData(), file->GetSize());
-            padTo32(&fileDataStream, fileDataStream.getSize());
-
-            currentFileIndex++;
-        }
     }
 
     uint32_t totalArchiveSize = 0x40 + (mDirectories.size() * 0x10) + (currentFileIndex * 0x14);
@@ -279,7 +271,7 @@ void Rarc::SaveToFile(std::string path){
     headerStream.writeUInt32(fileSystemChunk - archiveData);
     headerStream.writeUInt32(fileDataChunk - fileSystemChunk);
     headerStream.writeUInt32(fileDataStream.getSize());
-    headerStream.writeUInt32(0); //TODO: mram flag!
+    headerStream.writeUInt32(fileDataStream.getSize()); //TODO: mram flag!
     headerStream.writeUInt32(0); //TODO: aram flag!
     headerStream.writeUInt32(0); // pad
 
