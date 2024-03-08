@@ -104,7 +104,7 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
     bit_count = 0;
     bit_offset = 16;
 
-    if(length == 0 || offset > expand_limit){
+    if(decompressedSize == 0 || offset > expand_limit){
         return;
     }
 
@@ -185,8 +185,117 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
     delete[] dst;
 }
 
+// Adapted from Cuyler36's GCNToolkit.
 void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
+    const uint32_t OFSBITS = 12;
+    int32_t decPtr = 0;
+    
+    // Set up for mask buffer
+    uint32_t maskMaxSize = (src_data->getSize() + 32) >> 3;
+    uint32_t maskBitCount = 0, mask = 0;
+    int32_t maskPtr = 0;
+    
+    // Set up for link buffer
+    uint32_t linkMaxSize = src_data->getSize() >> 1;
+    uint16_t linkOffset = 0;
+    int32_t linkPtr = 0;
+    uint16_t minCount = 3, maxCount = 273;
 
+    // Set up chunk and window settings
+    int32_t chunkPtr = 0, windowPtr = 0, windowLen = 0, length = 0, maxlen = 0;
+
+    // Initialize all the buffers with proper size
+    uint32_t* maskBuffer = new uint32_t[maskMaxSize >> 2];
+    uint16_t* linkBuffer = new uint16_t[linkMaxSize];
+    uint8_t* chunkBuffer = new uint8_t[src_data->getSize()];
+
+    uint8_t* src = new uint8_t[src_data->getSize()];
+    src_data->readBytesTo(src, src_data->getSize());
+
+    while(decPtr < src_data->getSize()){
+        if(windowLen >= 1 << OFSBITS){
+            windowLen -= (1 << OFSBITS);
+            windowPtr = decPtr - windowLen;
+        }
+
+        if(src_data->getSize() - decPtr < maxCount){
+            maxCount = (uint16_t)(src_data->getSize() - decPtr);
+        }
+
+        maxlen = 0;
+
+        for (size_t i = 0; i < windowLen; i++)
+        {
+            for (length = 0; length < (windowLen - i) && length < maxCount; length++)
+            {
+                if(src[decPtr + length] != src[windowPtr + length + i]) break;
+            }
+            if(length > maxlen)
+            {
+                maxlen = length;
+                linkOffset = (uint16_t)windowLen - i;
+
+            }
+            
+        }
+        
+        length = maxlen;
+
+        mask <<= 1;
+        if(length >= minCount){
+            uint16_t link = (uint16_t)((linkOffset - 1) & 0x0FFF);
+
+            if(length < 18){
+                link |= (uint16_t)((length - 2) << 12);
+            } else {
+                chunkBuffer[chunkPtr++] = (uint8_t)(length - 18);
+            }
+
+            linkBuffer[linkPtr++] = bStream::swap16(link);
+            decPtr += length;
+            windowLen += length;
+        } else {
+            chunkBuffer[chunkPtr++] = src[decPtr++];
+            windowLen++;
+            mask |= 1;
+        }
+
+        maskBitCount++;
+        if(maskBitCount == 32){
+            maskBuffer[maskPtr] = bStream::swap32(mask);
+            maskPtr++;
+            maskBitCount =0;
+        }
+
+    }
+
+    if(maskBitCount > 0){
+        mask <<= 32 - maskBitCount;
+        maskBuffer[maskPtr] = bStream::swap32(mask);
+        maskPtr++;
+    }
+
+    const char* fourcc = "Yay0";
+    uint32_t linkSecOff = 0x10 + (sizeof(uint32_t) * maskPtr);
+    uint32_t chunkSecOff = linkSecOff + (sizeof(uint16_t) * linkPtr);
+
+    dst_data->writeString(fourcc);
+    dst_data->writeUInt32(src_data->getSize());
+    dst_data->writeUInt32(linkSecOff);
+    dst_data->writeUInt32(chunkSecOff);
+
+    dst_data->seek(0x10);
+    dst_data->writeBytes((uint8_t*)maskBuffer, maskPtr*sizeof(uint32_t));
+    dst_data->seek(linkSecOff);
+    dst_data->writeBytes((uint8_t*)maskBuffer, linkPtr*sizeof(uint16_t));
+    dst_data->seek(chunkSecOff);
+    dst_data->writeBytes((uint8_t*)maskBuffer, chunkPtr);
+
+    delete maskBuffer;
+    delete linkBuffer;
+    delete chunkBuffer;
+
+    delete src;
 }
 
 }
