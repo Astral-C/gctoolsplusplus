@@ -214,7 +214,7 @@ void Rarc::SaveToFile(std::string path){
             for (size_t ch = 0; ch < 4; ch++){
                 temp[ch] = toupper(folderName[ch]);
             }
-            dirStream.writeBytes(temp, 4);
+            dirStream.writeBytes((uint8_t*)temp, 4);
         }
 
         dirStream.writeUInt32(stringTable[folderName]); // ??????
@@ -252,7 +252,7 @@ void Rarc::SaveToFile(std::string path){
             fileStream.writeUInt32(file->GetSize());
             fileStream.writeUInt32(0x00);
 
-            fileDataStream.writeBytes((char*)file->GetData(), file->GetSize());
+            fileDataStream.writeBytes(file->GetData(), file->GetSize());
 
             currentFileIndex++;
         }
@@ -311,7 +311,7 @@ void Rarc::SaveToFile(std::string path){
     fileSystemStream.writeUInt32(0);
 
     bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
-    outFile.writeBytes((char*)archiveData, archiveSizes["total"]);
+    outFile.writeBytes(archiveData, archiveSizes["total"]);
 
     delete[] archiveData;
 }
