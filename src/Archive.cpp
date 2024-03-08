@@ -17,48 +17,6 @@ uint16_t Hash(std::string str){
     return hash;
 }
 
-
-std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
-    uint32_t size = 0x40;
-    
-    std::map<std::string, bool> isUniqueStr;
-
-    uint32_t dirEntrySize = 0x00; //??
-    uint32_t fileEntrySize = 0;
-    uint32_t fileDataSize = 0;
-    uint32_t strTableSize = 5; // Accounts for .\0 and ..\0 strs
-
-    for(auto dir : mDirectories){
-        dirEntrySize += 0x10;
-        
-        if(isUniqueStr.count(dir->GetName()) == 0){
-            strTableSize += dir->GetName().size() + 1;
-            isUniqueStr.insert({dir->GetName(), true});
-        } 
-        
-        fileEntrySize += 0x14 + 0x14; // . and .. entries
-        
-        for(auto subdir : dir->GetSubdirectories()){
-            fileEntrySize += 0x14;
-        }
-
-        for(auto file : dir->GetFiles()){
-            if(isUniqueStr.count(file->GetName()) == 0){
-                strTableSize += file->GetName().size() + 1;
-                isUniqueStr.insert({file->GetName(), true});
-            } 
-
-            fileEntrySize += 0x14;
-            fileDataSize += file->GetSize();
-        }
-    }
-
-    size += Util::PadTo32(dirEntrySize) + Util::PadTo32(fileEntrySize) + fileDataSize + Util::PadTo32(strTableSize);
-
-    return {{"total", Util::PadTo32(size)}, {"dirEntries", Util::PadTo32(dirEntrySize)}, {"fileEntries", Util::PadTo32(fileEntrySize)}, {"fileData", fileDataSize}, {"strTable", Util::PadTo32(strTableSize)}};
-}
-
-
 ///
 /// Folder
 ///
@@ -127,6 +85,71 @@ void Folder::AddSubdirectory(std::shared_ptr<Folder> dir){
         }
     }
 }
+
+///
+/// File
+///
+
+bool File::MountAsArchive(){
+    std::shared_ptr<Rarc> arc =  Rarc::Create();
+
+    bStream::CMemoryStream stream(mData, mSize, bStream::Endianess::Big, bStream::OpenMode::In);
+
+    if(arc->Load(&stream)){
+        mMountedArchive = arc;
+        return true;
+    } else {
+        mMountedArchive = nullptr;
+        return false; 
+    }
+
+}
+
+
+///
+/// Archive
+///
+
+std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
+    uint32_t size = 0x40;
+    
+    std::map<std::string, bool> isUniqueStr;
+
+    uint32_t dirEntrySize = 0x00; //??
+    uint32_t fileEntrySize = 0;
+    uint32_t fileDataSize = 0;
+    uint32_t strTableSize = 5; // Accounts for .\0 and ..\0 strs
+
+    for(auto dir : mDirectories){
+        dirEntrySize += 0x10;
+        
+        if(isUniqueStr.count(dir->GetName()) == 0){
+            strTableSize += dir->GetName().size() + 1;
+            isUniqueStr.insert({dir->GetName(), true});
+        } 
+        
+        fileEntrySize += 0x14 + 0x14; // . and .. entries
+        
+        for(auto subdir : dir->GetSubdirectories()){
+            fileEntrySize += 0x14;
+        }
+
+        for(auto file : dir->GetFiles()){
+            if(isUniqueStr.count(file->GetName()) == 0){
+                strTableSize += file->GetName().size() + 1;
+                isUniqueStr.insert({file->GetName(), true});
+            } 
+
+            fileEntrySize += 0x14;
+            fileDataSize += file->GetSize();
+        }
+    }
+
+    size += Util::PadTo32(dirEntrySize) + Util::PadTo32(fileEntrySize) + fileDataSize + Util::PadTo32(strTableSize);
+
+    return {{"total", Util::PadTo32(size)}, {"dirEntries", Util::PadTo32(dirEntrySize)}, {"fileEntries", Util::PadTo32(fileEntrySize)}, {"fileData", fileDataSize}, {"strTable", Util::PadTo32(strTableSize)}};
+}
+
 
 void Rarc::SaveToFile(std::string path){
 
@@ -293,7 +316,12 @@ void Rarc::SaveToFile(std::string path){
     delete[] archiveData;
 }
 
-void Rarc::Load(bStream::CStream* stream){
+// Needs error checking
+bool Rarc::Load(bStream::CStream* stream){
+    if(stream->readUInt32() != 0x52415243){
+        return false;
+    }
+    
     stream->seek(8); // Skip unneeded stuff
 
     uint32_t fsOffset = stream->readUInt32();
@@ -391,5 +419,6 @@ void Rarc::Load(bStream::CStream* stream){
         }
         stream->seek(pos);
     }
+    return true;
 }
 }

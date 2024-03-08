@@ -14,6 +14,7 @@ namespace Archive {
     
     class File : public std::enable_shared_from_this<File>{
         std::shared_ptr<Rarc> mArchive;
+        std::shared_ptr<Rarc> mMountedArchive;
         std::shared_ptr<Folder> mParentDir;
         
         std::string mName;
@@ -34,6 +35,12 @@ namespace Archive {
         uint32_t GetSize() { return mSize; }
         uint8_t* GetData() { return mData; }
         
+        bool MountAsArchive();
+
+        std::shared_ptr<Rarc> operator->() const {
+            return mMountedArchive;
+        }
+
         static std::shared_ptr<File> Create(){
             return std::make_shared<File>();
         }
@@ -120,7 +127,7 @@ namespace Archive {
         std::map<std::string, uint32_t> CalculateArchiveSizes();
         
     public:
-        void Load(bStream::CStream* stream);
+        bool Load(bStream::CStream* stream);
         void SaveToFile(std::string path);
 
         // Directories should all be children of root
