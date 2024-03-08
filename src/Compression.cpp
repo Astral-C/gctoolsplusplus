@@ -63,8 +63,6 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
         --count;
     }
 
-    std::cout << std::hex << *((uint32_t*)dst) << std::endl;
-
     dst_data->writeBytes(dst, decompressedSize);
 
     delete[] src;

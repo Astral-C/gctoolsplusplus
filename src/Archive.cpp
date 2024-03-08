@@ -318,7 +318,10 @@ void Rarc::SaveToFile(std::string path){
 
 // Needs error checking
 bool Rarc::Load(bStream::CStream* stream){
-    if(stream->readUInt32() != 0x52415243){
+    uint32_t magic = stream->readUInt32();
+    
+
+    if(magic != 0x52415243){
         return false;
     }
     
