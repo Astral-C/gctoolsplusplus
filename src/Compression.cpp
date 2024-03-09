@@ -4,6 +4,11 @@ namespace Compression {
 
 namespace Yaz0 {
 
+struct _MatchResult {
+    size_t position;
+    size_t length;
+};
+
 void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t offset, uint32_t length){
     uint32_t count = 0, src_pos = 0, dst_pos = 0;
     uint8_t bits;
@@ -69,99 +74,104 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
     delete[] dst;
 }
 
-void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t level){
+_MatchResult findMatch(uint8_t* src, size_t readPtr, size_t matchMaxLength, size_t searchRange, size_t srcSize){
+    _MatchResult result = {0, 1};
 
+    if(readPtr + 2 < srcSize){
+        size_t matchPtr = readPtr - searchRange;
+        size_t windowEnd = readPtr + matchMaxLength;
+
+        if(matchPtr < 0) matchPtr = 0;
+        if(windowEnd > srcSize) windowEnd = srcSize;
+
+        while(matchPtr < readPtr){
+            if((src[matchPtr] != src[readPtr + 1] ) && (src[matchPtr + 1] != src[readPtr + 1])){
+                matchPtr++;
+                continue;
+            }
+
+            size_t matchWindowPtr = matchPtr + 1;
+            size_t srcWindowPtr = readPtr + 1;
+
+            while(srcWindowPtr < windowEnd && src[srcWindowPtr] == src[matchWindowPtr]){
+                matchWindowPtr++;
+                srcWindowPtr++;
+            }
+
+            size_t matchLength = srcWindowPtr - readPtr;
+
+            if(result.length < matchLength){
+                result.length = matchLength;
+                result.position = matchPtr;
+                if(result.length == matchMaxLength){
+                    break;
+                }
+            }
+
+            matchPtr++;
+
+        }
+    }
+
+    return result;
+
+}
+
+void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t level){
     uint8_t* src = new uint8_t[src_data->getSize()];
+    uint8_t* result = new uint8_t[src_data->getSize()];
+
     src_data->readBytesTo(src, src_data->getSize());
 
-    size_t maxbacklevel = 0x10e0ULL * (level / 9.0) - 0x0e0ULL;
+    size_t searchRange = 0x10E0 * level / 9 - 0x0E0;
 
-    // Calculation for result pointer's size.
-    size_t length = src_data->getSize() + src_data->getSize() / 8 + 0x10;
+    size_t readPtr = 0;
+    size_t writePtr = 0;
+    size_t codeBytePos = 0;
+    size_t maxLength = 0x111;
 
-    uint8_t* result = new uint8_t[length];
+    while(readPtr < src_data->getSize()){
+        codeBytePos = writePtr++;
 
-    uint8_t* dataptr = src;
-    uint8_t* resultptr = result;
-
-    size_t dstoffs = 0;
-    size_t offs = 0;
-    while (1) {
-        size_t headeroffs = dstoffs++;
-        resultptr++;
-        uint8_t header = 0;
-        for (int i = 0; i < 8; i++) {
-            uint8_t comp = 0;
-            ptrdiff_t back = 1;
-            size_t nr = 2;
-            uint8_t* ptr = dataptr - 1;
-            size_t maxnum = 0x111;
-            if (length - offs < maxnum) maxnum = length - offs;
-            size_t maxback = maxbacklevel;
-            if (offs < maxback) maxback = offs;
-            maxback = ((size_t)dataptr) - maxback;
-            size_t tmpnr = 0;
-            while (maxback <= (size_t)(ptr)) {
-                if (*(uint16_t*)ptr == *(uint16_t*)dataptr && ptr[2] == dataptr[2]) {
-                    tmpnr = 3;
-                    while(tmpnr < maxnum && ptr[tmpnr] == dataptr[tmpnr]) tmpnr++;
-                    if (tmpnr > nr) {
-                        if (offs + tmpnr > length) {
-                            nr = length - offs;
-                            back = (ptrdiff_t)(dataptr - ptr);
-                            break;
-                        }
-                        nr = tmpnr;
-                        back = (ptrdiff_t)(dataptr - ptr);
-                        if (nr == maxback) break;
-                    }
-                }
-                --ptr;
-            }
-            if (nr > 2) {
-                offs += nr;
-                dataptr += nr;
-                if (nr >= 0x12) {
-                    *resultptr++ = (uint8_t)(((back - 1) >> 8) & 0xF);
-                    *resultptr++ = (uint8_t)((back - 1) & 0xFF);
-                    *resultptr++ = (uint8_t)((nr - 0x12) & 0xFF);
-                    dstoffs += 3;
-                } else {
-                    *resultptr++ = (uint8_t)((((back - 1) >> 8) & 0xF) | (((nr - 2) & 0xF) << 4));
-                    *resultptr++ = (uint8_t)((back - 1) & 0xFF);
-                    dstoffs += 2;
-                }
-                comp = 1;
-            }
-            else {
-                *resultptr++ = *dataptr++;
-                dstoffs++;
-                offs++;
-            }
-            header = (uint8_t)((header << 1) | ((comp == 1) ? 0 : 1));
-            if (offs >= length) {
-                header = (uint8_t)(header << (7 - i));
+        for(int i = 0; i < 8; i++){
+            if(readPtr >= src_data->getSize()){
                 break;
             }
+
+            size_t matchLength = 1;
+            size_t matchPosition = 0;
+
+            _MatchResult match = findMatch(src, readPtr, maxLength, searchRange, src_data->getSize());;
+
+            matchPosition = match.position;
+            matchLength = match.length;
+
+            if(matchLength > 2){
+                size_t delta = readPtr - matchPosition - 1;
+
+                if(matchLength < 0x12) {
+                    result[writePtr++] = (delta >> 8 | (matchLength - 2) << 4);
+                    result[writePtr++] = (delta & 0xFF);
+                } else {
+                    result[writePtr++] = (delta >> 8);
+                    result[writePtr++] = (delta & 0xFF);
+                    result[writePtr++] = ((matchLength - 0x12) & 0xFF);
+                }
+
+            } else {
+                result[codeBytePos] |= 1 << (7 - i);
+                result[writePtr++] = src[readPtr++];
+            }
+
         }
-        result[headeroffs] = header;
-        if (offs >= length) break;
+
     }
-    // dstoffs should be >= length once this is run
-    while ((dstoffs % 4) != 0) dstoffs++;
-
-
-    dst_data->writeBytes(result, dstoffs);
-    
-    dst_data->seek(0);
 
     dst_data->writeString("Yaz0");
     dst_data->writeUInt32(src_data->getSize());
-
-    // Last 8 bytes of header are unknown.
     dst_data->writeUInt32(0);
     dst_data->writeUInt32(0);
-
+    dst_data->writeBytes(result, writePtr);
 
     delete[] src;
     delete[] result;
