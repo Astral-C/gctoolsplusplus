@@ -13,6 +13,7 @@ namespace Archive {
     uint16_t Hash(std::string str);
     
     class File : public std::enable_shared_from_this<File>{
+        friend Rarc;
         std::shared_ptr<Rarc> mArchive;
         std::shared_ptr<Rarc> mMountedArchive;
         std::shared_ptr<Folder> mParentDir;
@@ -21,6 +22,8 @@ namespace Archive {
         
         uint8_t* mData;
         uint32_t mSize;
+
+        std::shared_ptr<Rarc> GetMountedArchive(){ return mMountedArchive; }
 
     public:
         void SetData(unsigned char* data, size_t size){
@@ -34,6 +37,7 @@ namespace Archive {
 
         uint32_t GetSize() { return mSize; }
         uint8_t* GetData() { return mData; }
+        
         
         bool MountAsArchive();
 
@@ -50,6 +54,7 @@ namespace Archive {
         }
 
         File(){
+            mMountedArchive = nullptr;
             mData = nullptr;
             mSize = 0;
         }
@@ -132,6 +137,18 @@ namespace Archive {
 
         // Directories should all be children of root
         std::shared_ptr<Folder> GetRoot(){ return mDirectories[0]; }
+
+        template<typename T>
+        std::shared_ptr<T> Get(std::filesystem::path path){ 
+            if constexpr(std::is_same_v<T,File>){
+                return GetFile(path);
+            } else if constexpr(std::is_same_v<T, Folder>){
+                return GetFolder(path);
+            } else if constexpr(std::is_same_v<T, Folder>){
+                return GetFile(path)->GetMountedArchive();
+            }
+            return nullptr; 
+        }
 
         std::shared_ptr<File> GetFile(std::filesystem::path path) {
             if(path.begin()->string() != "/"){

@@ -26,8 +26,16 @@ std::shared_ptr<File> Folder::GetFile(std::filesystem::path path) {
 
 
     for(auto file : mFiles){
-        if(file->GetName() == path.begin()->string() && ((++path.begin()) == path.end())){
-            return file;
+        if(file->GetName() == path.begin()->string()){
+            if(((++path.begin()) == path.end())){
+                return file;
+            } else {
+                if(file->MountAsArchive()){
+                    std::filesystem::path subPath;
+                    for(auto it = (++path.begin()); it != path.end(); it++) subPath  = subPath / it->string();
+                    return (*file)->GetFile(subPath);
+                }
+            }
         }
     }
 
