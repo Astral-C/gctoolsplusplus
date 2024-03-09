@@ -71,6 +71,97 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
 
 void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t level){
 
+    uint8_t* src = new uint8_t[src_data->getSize()];
+    src_data->readBytesTo(src, src_data->getSize());
+
+    size_t maxbacklevel = 0x10e0ULL * (level / 9.0) - 0x0e0ULL;
+
+    // Calculation for result pointer's size.
+    size_t length = src_data->getSize() + src_data->getSize() / 8;
+
+    uint8_t* result = new uint8_t[length];
+
+    uint8_t* dataptr = src;
+    uint8_t* resultptr = result;
+
+    size_t dstoffs = 16;
+    size_t offs = 0;
+    while (1) {
+        size_t headeroffs = dstoffs++;
+        resultptr++;
+        uint8_t header = 0;
+        for (int i = 0; i < 8; i++) {
+            uint8_t comp = 0;
+            ptrdiff_t back = 1;
+            size_t nr = 2;
+            uint8_t* ptr = dataptr - 1;
+            size_t maxnum = 0x111;
+            if (length - offs < maxnum) maxnum = length - offs;
+            size_t maxback = maxbacklevel;
+            if (offs < maxback) maxback = offs;
+            maxback = ((size_t)dataptr) - maxback;
+            size_t tmpnr = 0;
+            while (maxback <= (size_t)(ptr)) {
+                if (*(uint16_t*)ptr == *(uint16_t*)dataptr && ptr[2] == dataptr[2]) {
+                    tmpnr = 3;
+                    while(tmpnr < maxnum && ptr[tmpnr] == dataptr[tmpnr]) tmpnr++;
+                    if (tmpnr > nr) {
+                        if (offs + tmpnr > length) {
+                            nr = length - offs;
+                            back = (ptrdiff_t)(dataptr - ptr);
+                            break;
+                        }
+                        nr = tmpnr;
+                        back = (ptrdiff_t)(dataptr - ptr);
+                        if (nr == maxback) break;
+                    }
+                }
+                --ptr;
+            }
+            if (nr > 2) {
+                offs += nr;
+                dataptr += nr;
+                if (nr >= 0x12) {
+                    *resultptr++ = (uint8_t)(((back - 1) >> 8) & 0xF);
+                    *resultptr++ = (uint8_t)((back - 1) & 0xFF);
+                    *resultptr++ = (uint8_t)((nr - 0x12) & 0xFF);
+                    dstoffs += 3;
+                } else {
+                    *resultptr++ = (uint8_t)((((back - 1) >> 8) & 0xF) | (((nr - 2) & 0xF) << 4));
+                    *resultptr++ = (uint8_t)((back - 1) & 0xFF);
+                    dstoffs += 2;
+                }
+                comp = 1;
+            }
+            else {
+                *resultptr++ = *dataptr++;
+                dstoffs++;
+                offs++;
+            }
+            header = (uint8_t)((header << 1) | ((comp == 1) ? 0 : 1));
+            if (offs >= length) {
+                header = (uint8_t)(header << (7 - i));
+                break;
+            }
+        }
+        result[headeroffs] = header;
+        if (offs >= length) break;
+    }
+    // dstoffs should be >= length once this is run
+    while ((dstoffs % 4) != 0) dstoffs++;
+
+
+    dst_data->writeString("Yaz0");
+    dst_data->writeUInt32(src_data->getSize());
+
+    // Last 8 bytes of header are unknown.
+    dst_data->writeUInt32(0);
+    dst_data->writeUInt32(0);
+
+    dst_data->writeBytes(result, dstoffs);
+
+    delete[] src;
+    delete[] result;
 }
 
 }

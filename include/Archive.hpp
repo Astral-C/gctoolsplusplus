@@ -112,6 +112,18 @@ namespace Archive {
             return shared_from_this();
         }
 
+        template<typename T>
+        std::shared_ptr<T> Get(std::filesystem::path path){ 
+            if constexpr(std::is_same_v<T,File>){
+                return GetFile(path);
+            } else if constexpr(std::is_same_v<T, Folder>){
+                return GetFolder(path);
+            } else if constexpr(std::is_same_v<T, Folder>){
+                return GetFile(path)->GetMountedArchive();
+            }
+            return nullptr; 
+        }
+
         Folder(std::shared_ptr<Rarc> archive){
             mArchive = archive;
             mParentDir = nullptr;
