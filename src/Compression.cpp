@@ -77,14 +77,14 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
     size_t maxbacklevel = 0x10e0ULL * (level / 9.0) - 0x0e0ULL;
 
     // Calculation for result pointer's size.
-    size_t length = src_data->getSize() + src_data->getSize() / 8;
+    size_t length = src_data->getSize() + src_data->getSize() / 8 + 0x10;
 
     uint8_t* result = new uint8_t[length];
 
     uint8_t* dataptr = src;
     uint8_t* resultptr = result;
 
-    size_t dstoffs = 16;
+    size_t dstoffs = 0;
     size_t offs = 0;
     while (1) {
         size_t headeroffs = dstoffs++;
@@ -151,6 +151,10 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
     while ((dstoffs % 4) != 0) dstoffs++;
 
 
+    dst_data->writeBytes(result, dstoffs);
+    
+    dst_data->seek(0);
+
     dst_data->writeString("Yaz0");
     dst_data->writeUInt32(src_data->getSize());
 
@@ -158,7 +162,6 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
     dst_data->writeUInt32(0);
     dst_data->writeUInt32(0);
 
-    dst_data->writeBytes(result, dstoffs);
 
     delete[] src;
     delete[] result;
