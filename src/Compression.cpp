@@ -78,27 +78,28 @@ _MatchResult findMatch(uint8_t* src, size_t readPtr, size_t matchMaxLength, size
     _MatchResult result = {0, 1};
 
     if(readPtr + 2 < srcSize){
-        size_t matchPtr = readPtr - searchRange;
-        size_t windowEnd = readPtr + matchMaxLength;
+        int matchPtr = readPtr - searchRange;
+        int windowEnd = readPtr + matchMaxLength;
 
         if(matchPtr < 0) matchPtr = 0;
         if(windowEnd > srcSize) windowEnd = srcSize;
 
+        uint16_t v = *((uint16_t*)&src[readPtr]);
         while(matchPtr < readPtr){
-            if((src[matchPtr] != src[readPtr + 1] ) && (src[matchPtr + 1] != src[readPtr + 1])){
+            if(v != *((uint16_t*)&src[matchPtr])){
                 matchPtr++;
                 continue;
             }
 
-            size_t matchWindowPtr = matchPtr + 1;
-            size_t srcWindowPtr = readPtr + 1;
+            int matchWindowPtr = matchPtr + 1;
+            int srcWindowPtr = readPtr + 1;
 
             while(srcWindowPtr < windowEnd && src[srcWindowPtr] == src[matchWindowPtr]){
                 matchWindowPtr++;
                 srcWindowPtr++;
             }
 
-            size_t matchLength = srcWindowPtr - readPtr;
+            int matchLength = srcWindowPtr - readPtr;
 
             if(result.length < matchLength){
                 result.length = matchLength;
@@ -122,7 +123,7 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
     uint8_t* result = new uint8_t[src_data->getSize()];
 
     src_data->readBytesTo(src, src_data->getSize());
-
+    
     size_t searchRange = 0x10E0 * level / 9 - 0x0E0;
 
     size_t readPtr = 0;
@@ -157,7 +158,7 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
                     result[writePtr++] = (delta & 0xFF);
                     result[writePtr++] = ((matchLength - 0x12) & 0xFF);
                 }
-
+                readPtr += matchLength;
             } else {
                 result[codeBytePos] |= 1 << (7 - i);
                 result[writePtr++] = src[readPtr++];
