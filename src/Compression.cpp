@@ -2,12 +2,23 @@
 
 namespace Compression {
 
+size_t GetDecompressedSize(bStream::CStream* stream){
+    size_t pos = stream->tell();
+
+    stream->seek(4);
+    size_t decompressedSize = stream->readUInt32();
+    stream->seek(pos);
+
+    return decompressedSize;
+}
+
 namespace Yaz0 {
 
 struct _MatchResult {
     size_t position;
     size_t length;
 };
+
 
 void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t offset, uint32_t length){
     uint32_t count = 0, src_pos = 0, dst_pos = 0;
@@ -119,11 +130,15 @@ _MatchResult findMatch(uint8_t* src, size_t readPtr, size_t matchMaxLength, size
 }
 
 void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t level){
-    uint8_t* src = new uint8_t[src_data->getSize()];
-    uint8_t* result = new uint8_t[src_data->getSize()];
-
+    uint8_t* src = new uint8_t[src_data->getSize()]{0};
+    uint8_t* result = new uint8_t[src_data->getSize()]{0};
+    src_data->seek(0);
     src_data->readBytesTo(src, src_data->getSize());
     
+  
+    bStream::CFileStream hexdump("hexdump.dmp", bStream::Endianess::Big, bStream::OpenMode::Out);
+    hexdump.writeBytes(src, src_data->getSize());
+
     size_t searchRange = 0x10E0 * level / 9 - 0x0E0;
 
     size_t readPtr = 0;
@@ -196,6 +211,7 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
     
     uint8_t* dst = new uint8_t[decompressedSize];
 
+    src_data->seek(0);
     src_data->readBytesTo(src, src_data->getSize());
 
 
@@ -315,6 +331,9 @@ void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
     uint8_t* src = new uint8_t[src_data->getSize()];
     src_data->readBytesTo(src, src_data->getSize());
 
+    bStream::CFileStream hexdump("hexdump.dmp", bStream::Endianess::Big, bStream::OpenMode::Out);
+    hexdump.writeBytes(src, src_data->getSize());
+
     while(decPtr < src_data->getSize()){
         if(windowLen >= 1 << OFSBITS){
             windowLen -= (1 << OFSBITS);
@@ -394,11 +413,11 @@ void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
     dst_data->seek(chunkSecOff);
     dst_data->writeBytes((uint8_t*)maskBuffer, chunkPtr);
 
-    delete maskBuffer;
-    delete linkBuffer;
-    delete chunkBuffer;
+    delete[] maskBuffer;
+    delete[] linkBuffer;
+    delete[] chunkBuffer;
 
-    delete src;
+    delete[] src;
 }
 
 }

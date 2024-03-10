@@ -1,3 +1,5 @@
+#define BSTREAM_IMPLEMENTATION
+#include <bstream.h>
 #include "Util.hpp"
 
 namespace Util {

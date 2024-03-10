@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Util.hpp>
 #include <bstream.h>
 #include <filesystem>
 #include <memory>
