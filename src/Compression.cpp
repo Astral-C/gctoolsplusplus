@@ -407,9 +407,9 @@ void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
     dst_data->seek(0x10);
     dst_data->writeBytes((uint8_t*)maskBuffer, maskPtr*sizeof(uint32_t));
     dst_data->seek(linkSecOff);
-    dst_data->writeBytes((uint8_t*)maskBuffer, linkPtr*sizeof(uint16_t));
+    dst_data->writeBytes((uint8_t*)linkBuffer, linkPtr*sizeof(uint16_t));
     dst_data->seek(chunkSecOff);
-    dst_data->writeBytes((uint8_t*)maskBuffer, chunkPtr);
+    dst_data->writeBytes((uint8_t*)chunkBuffer, chunkPtr);
 
     delete[] maskBuffer;
     delete[] linkBuffer;

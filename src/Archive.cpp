@@ -159,7 +159,7 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
 }
 
 
-void Rarc::SaveToFile(std::string path){
+void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compression, uint8_t compressionLevel){
 
     std::map<std::string, uint32_t> archiveSizes = CalculateArchiveSizes();
 
@@ -318,8 +318,32 @@ void Rarc::SaveToFile(std::string path){
     fileSystemStream.writeUInt8(0);
     fileSystemStream.writeUInt32(0);
 
-    bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
-    outFile.writeBytes(archiveData, archiveSizes["total"]);
+    switch(compression){
+        case Compression::Format::None:
+            {
+                bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
+                outFile.writeBytes(archiveData, archiveSizes["total"]);
+            }
+            break;
+        
+        case Compression::Format::YAY0:
+            {
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
+                bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
+
+                Compression::Yay0::Compress(&archiveOut, &outFile);
+            }
+            break; 
+        case Compression::Format::YAZ0:
+            {
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
+                bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
+
+                Compression::Yaz0::Compress(&archiveOut, &outFile, compressionLevel);
+            }
+            break; 
+    }
+
 
     delete[] archiveData;
 }

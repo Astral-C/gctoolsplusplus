@@ -3,6 +3,7 @@
 #include <Util.hpp>
 #include <bstream.h>
 #include <filesystem>
+#include <Compression.hpp>
 #include <memory>
 #include <vector>
 #include <map>
@@ -151,7 +152,7 @@ namespace Archive {
         
     public:
         bool Load(bStream::CStream* stream);
-        void SaveToFile(std::string path);
+        void SaveToFile(std::filesystem::path path, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7);
 
         // Directories should all be children of root
         std::shared_ptr<Folder> GetRoot(){ return mDirectories[0]; }

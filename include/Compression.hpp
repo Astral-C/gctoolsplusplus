@@ -5,6 +5,12 @@
 
 namespace Compression {
 
+    enum class Format {
+        None,
+        YAZ0,
+        YAY0
+    };
+
     size_t GetDecompressedSize(bStream::CStream* stream);
 
     namespace Yaz0 {
