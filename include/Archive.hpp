@@ -29,6 +29,11 @@ namespace Archive {
     public:
         void SetData(unsigned char* data, size_t size){
             mSize = size;
+
+            if(mData != nullptr){
+                delete[] mData;
+            }
+            
             mData = new uint8_t[size];
             memcpy(mData, data, size);
         }
