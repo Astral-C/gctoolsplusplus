@@ -321,7 +321,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
     switch(compression){
         case Compression::Format::None:
             {
-                bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
                 outFile.writeBytes(archiveData, archiveSizes["total"]);
             }
             break;
@@ -329,7 +329,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
         case Compression::Format::YAY0:
             {
                 bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
-                bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yay0::Compress(&archiveOut, &outFile);
             }
@@ -337,7 +337,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
         case Compression::Format::YAZ0:
             {
                 bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
-                bStream::CFileStream outFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yaz0::Compress(&archiveOut, &outFile, compressionLevel);
             }
