@@ -350,95 +350,115 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
 
 // Needs error checking
 bool Rarc::Load(bStream::CStream* stream){
-    uint32_t magic = stream->readUInt32();
+    bStream::CMemoryStream decompressedArcStream(1, bStream::Endianess::Big, bStream::OpenMode::Out);
     
+    bStream::CStream* rarcStream = stream;
+    
+    uint32_t magic = stream->readUInt32();
 
-    if(magic != 0x52415243){
+    if(magic == 1499560496){
+        decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
+        Compression::Yaz0::Decompress(stream, &decompressedArcStream);
+        decompressedArcStream.changeMode(bStream::OpenMode::In);    
+        rarcStream = &decompressedArcStream;
+    } else if(magic == 1499560240){
+        decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
+        Compression::Yay0::Decompress(stream, &decompressedArcStream);
+        decompressedArcStream.changeMode(bStream::OpenMode::In);
+        rarcStream = &decompressedArcStream;
+    }
+
+    rarcStream->seek(0);
+
+    magic = rarcStream->readUInt32();
+
+    if(magic != 1380012611){
         return false;
     }
     
-    stream->seek(8); // Skip unneeded stuff
+    
+    rarcStream->seek(8); // Skip unneeded stuff
 
-    uint32_t fsOffset = stream->readUInt32();
-    uint32_t fsSize = stream->readUInt32();
+    uint32_t fsOffset = rarcStream->readUInt32();
+    uint32_t fsSize = rarcStream->readUInt32();
 
-    stream->seek(fsOffset);
+    rarcStream->seek(fsOffset);
 
-    uint32_t dirCount = stream->readUInt32();
-    uint32_t dirOffset = stream->readUInt32();
+    uint32_t dirCount = rarcStream->readUInt32();
+    uint32_t dirOffset = rarcStream->readUInt32();
 
-    uint32_t fileCount = stream->readUInt32();
-    uint32_t fileOffset = stream->readUInt32();
+    uint32_t fileCount = rarcStream->readUInt32();
+    uint32_t fileOffset = rarcStream->readUInt32();
 
-    uint32_t strTableSize = stream->readUInt32();
-    uint32_t strTableOffset = stream->readUInt32();
+    uint32_t strTableSize = rarcStream->readUInt32();
+    uint32_t strTableOffset = rarcStream->readUInt32();
 
     for(size_t i = 0; i < dirCount; i++) mDirectories.push_back(Folder::Create(GetPtr()));
  
-    stream->seek(dirOffset + fsOffset);
+    rarcStream->seek(dirOffset + fsOffset);
     for(size_t i = 0; i < dirCount; i++)
     {
         std::shared_ptr<Folder> folder = mDirectories[i];
 
-        stream->skip(4);
-        uint32_t nameOffset = stream->readUInt32();
-        stream->skip(2);
+        rarcStream->skip(4);
+        uint32_t nameOffset = rarcStream->readUInt32();
+        rarcStream->skip(2);
 
-        uint16_t filenum = stream->readUInt16();
-        uint32_t fileoff = stream->readUInt32();
+        uint16_t filenum = rarcStream->readUInt16();
+        uint32_t fileoff = rarcStream->readUInt32();
 
-        size_t readReturn = stream->tell();
+        size_t readReturn = rarcStream->tell();
         
-        stream->seek(strTableOffset + fsOffset + nameOffset);
+        rarcStream->seek(strTableOffset + fsOffset + nameOffset);
         char c;
         std::string dirName;
-		while((c = stream->readUInt8()) != '\0' && stream->tell()  < (strTableOffset + fsOffset + strTableSize)){
+		while((c = rarcStream->readUInt8()) != '\0' && rarcStream->tell()  < (strTableOffset + fsOffset + strTableSize)){
 			dirName.push_back(c);
 		}
 
         folder->SetName(dirName);
 
-        stream->seek(readReturn);
+        rarcStream->seek(readReturn);
 
-        size_t pos = stream->tell();
-        stream->seek(fileOffset + (fileoff * 0x14) + fsOffset);
+        size_t pos = rarcStream->tell();
+        rarcStream->seek(fileOffset + (fileoff * 0x14) + fsOffset);
 
         for(size_t f = 0; f < filenum; f++)
         {
             std::shared_ptr<File> file = File::Create();
 
-            uint16_t id = stream->readUInt16();
-	        stream->skip(2);
+            uint16_t id = rarcStream->readUInt16();
+	        rarcStream->skip(2);
 
-            uint32_t fileAttrs = stream->readUInt32();
+            uint32_t fileAttrs = rarcStream->readUInt32();
             uint32_t fileNameOffset = fileAttrs & 0x00FFFFFF;
             uint8_t attr = (fileAttrs >> 24) & 0xFF;
-            uint32_t start = stream->readUInt32();
+            uint32_t start = rarcStream->readUInt32();
             
-            uint32_t fileSize = stream->readUInt32();
+            uint32_t fileSize = rarcStream->readUInt32();
 
-            size_t readReturn = stream->tell();
+            size_t readReturn = rarcStream->tell();
             
-            stream->seek(strTableOffset + fsOffset + fileNameOffset);
+            rarcStream->seek(strTableOffset + fsOffset + fileNameOffset);
 
             char c;
             std::string name;
-            while((c = stream->readUInt8()) != '\0' && stream->tell()  < (strTableOffset + fsOffset + strTableSize)){
+            while((c = rarcStream->readUInt8()) != '\0' && rarcStream->tell()  < (strTableOffset + fsOffset + strTableSize)){
                 name.push_back(c);
             }
 
-            stream->seek(readReturn);
+            rarcStream->seek(readReturn);
             
-            stream->skip(4);
+            rarcStream->skip(4);
 
             if(attr & 0x01){
                 
                 unsigned char* fileData = new unsigned char[fileSize];
                 
-                size_t pos = stream->tell();
-                stream->seek(fsOffset + fsSize + start);
-                stream->readBytesTo(fileData, fileSize);
-                stream->seek(pos);
+                size_t pos = rarcStream->tell();
+                rarcStream->seek(fsOffset + fsSize + start);
+                rarcStream->readBytesTo(fileData, fileSize);
+                rarcStream->seek(pos);
 
                 file->SetName(name);
                 file->SetData(fileData, fileSize);
@@ -452,7 +472,7 @@ bool Rarc::Load(bStream::CStream* stream){
             }
 
         }
-        stream->seek(pos);
+        rarcStream->seek(pos);
     }
     return true;
 }
