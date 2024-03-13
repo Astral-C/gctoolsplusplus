@@ -133,7 +133,7 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
     uint8_t* src = new uint8_t[src_data->getSize()]{};
     uint8_t* result = new uint8_t[src_data->getSize()]{};
     src_data->seek(0);
-    src_data->readBytesTo(src, src_data->getSize()-1);
+    src_data->readBytesTo(src, src_data->getSize());
 
     size_t searchRange = 0x10E0 * level / 9 - 0x0E0;
 
@@ -326,7 +326,7 @@ void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
 
     uint8_t* src = new uint8_t[src_data->getSize()];
     src_data->seek(0);
-    src_data->readBytesTo(src, src_data->getSize()-1);
+    src_data->readBytesTo(src, src_data->getSize());
 
     while(decPtr < src_data->getSize()){
         if(windowLen >= 1 << OFSBITS){
