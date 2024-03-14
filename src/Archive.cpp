@@ -220,6 +220,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
             char temp[4];
             memset(temp, 0x20, sizeof(temp));
             for (size_t ch = 0; ch < 4; ch++){
+                if(ch >= folderName.size()) break;
                 temp[ch] = toupper(folderName[ch]);
             }
             dirStream.writeBytes((uint8_t*)temp, 4);
@@ -229,23 +230,6 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
         dirStream.writeUInt16(Hash(folderName));
         dirStream.writeUInt16(folder->GetFileCount() + 2);
         dirStream.writeUInt32(currentFileIndex);
-
-        // Write Subdirectory entries
-        for(auto subdir : folder->GetSubdirectories()){
-            auto subdirIter = std::find(mDirectories.begin(), mDirectories.end(), subdir);
-            fileStream.writeUInt16(0xFFFF);
-            fileStream.writeUInt16(Hash(subdir->GetName()));
-            fileStream.writeUInt8(0x02);
-            fileStream.writeUInt8(0x00);
-
-            std::string subdirName = subdir->GetName();
-
-            fileStream.writeUInt16(stringTable[subdirName]); // ????
-            fileStream.writeUInt32(subdirIter - mDirectories.begin());
-            fileStream.writeUInt32(0x10);
-            fileStream.writeUInt32(0x00);
-            currentFileIndex++;
-        }
 
         // Write File entries
         for(auto file : folder->GetFiles()){
@@ -264,6 +248,24 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
 
             currentFileIndex++;
         }
+
+        // Write Subdirectory entries
+        for(auto subdir : folder->GetSubdirectories()){
+            auto subdirIter = std::find(mDirectories.begin(), mDirectories.end(), subdir);
+            fileStream.writeUInt16(0xFFFF);
+            fileStream.writeUInt16(Hash(subdir->GetName()));
+            fileStream.writeUInt8(0x02);
+            fileStream.writeUInt8(0x00);
+
+            std::string subdirName = subdir->GetName();
+
+            fileStream.writeUInt16(stringTable[subdirName]); // ????
+            fileStream.writeUInt32(subdirIter - mDirectories.begin());
+            fileStream.writeUInt32(0x10);
+            fileStream.writeUInt32(0x00);
+            currentFileIndex++;
+        }
+
 
         // Write .
         // [v]: perhaps this should be put into a function of some kind? unsure...
