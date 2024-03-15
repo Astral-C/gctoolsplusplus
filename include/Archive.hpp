@@ -103,7 +103,7 @@ namespace Archive {
         uint16_t GetFileCount() { return (uint16_t)mFiles.size() + (uint16_t)mFolders.size(); }
 
         std::shared_ptr<Rarc> GetArchive() { return mArchive; }
-        void SetArchive(std::shared_ptr<Rarc> arc) { mArchive = arc; }
+        void SetArchive(std::shared_ptr<Rarc> arc) { mArchive = arc; if(mArchive->mDirectories.size() == 0) mArchive.mDirectories.push_back(GetPtr()); }
 
         std::shared_ptr<Folder> Copy(std::shared_ptr<Rarc> archive);
         
