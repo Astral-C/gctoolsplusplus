@@ -153,6 +153,12 @@ namespace Archive {
 
         // Directories should all be children of root
         std::shared_ptr<Folder> GetRoot(){ return mDirectories[0]; }
+        void SetRoot(std::shared_ptr<Folder> folder) {
+            if(mDirectories.size() != 0){
+                folder->AddSubdirectory(mDirectories[0]);
+            }
+            mDirectories.insert(0, folder);
+        }
 
         template<typename T>
         std::shared_ptr<T> Get(std::filesystem::path path){ 
