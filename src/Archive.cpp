@@ -24,10 +24,6 @@ uint16_t Hash(std::string str){
 Folder::Folder(std::shared_ptr<Rarc> archive){
     mArchive = archive;
     mParentDir = nullptr;
-    
-    if(archive->mDirectories.size() == 0){
-        mArchive->mDirectories.push_back(GetPtr());
-    }
 }
 
 std::shared_ptr<File> Folder::GetFile(std::filesystem::path path) {
