@@ -157,7 +157,7 @@ namespace Archive {
             if(mDirectories.size() != 0){
                 folder->AddSubdirectory(mDirectories[0]);
             }
-            mDirectories.insert(0, folder);
+            mDirectories.insert(mDirectories.begin(), folder);
         }
 
         template<typename T>
