@@ -103,7 +103,7 @@ namespace Archive {
                     break;
                 }
             }
-            if(index > -1) mFiles.erase(index);
+            if(index > -1) mFiles.erase(mFiles.begin() + index);
         }
         
         void AddSubdirectory(std::shared_ptr<Folder> dir);
