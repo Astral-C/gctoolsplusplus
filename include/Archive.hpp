@@ -4,6 +4,7 @@
 #include <bstream.h>
 #include <filesystem>
 #include <Compression.hpp>
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <map>
@@ -94,7 +95,8 @@ namespace Archive {
         void SetParentUnsafe(std::shared_ptr<Folder> dir){ mParentDir = dir; }
 
         void AddFile(std::shared_ptr<File> file) { mFiles.push_back(file); }
-
+        void DeleteFile(std::shared_ptr<File> file) { if(std::find(mFiles.begin(), mFiles.end(), file) != mFiles.end()) mFiles.erase(std::find(mFiles.begin(), mFiles.end(), file)); }
+        
         void AddSubdirectory(std::shared_ptr<Folder> dir);
 
         std::vector<std::shared_ptr<Folder>>& GetSubdirectories() { return mFolders; }
