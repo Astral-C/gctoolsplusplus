@@ -95,7 +95,16 @@ namespace Archive {
         void SetParentUnsafe(std::shared_ptr<Folder> dir){ mParentDir = dir; }
 
         void AddFile(std::shared_ptr<File> file) { mFiles.push_back(file); }
-        void DeleteFile(std::shared_ptr<File> file) { if(std::find(mFiles.begin(), mFiles.end(), file) != mFiles.end()) mFiles.erase(std::find(mFiles.begin(), mFiles.end(), file)); }
+        void DeleteFile(std::shared_ptr<File> file) {
+            int index = -1;
+            for(int i = 0; i < mFiles.size(); i++) {
+                if(mFiles.at(i)->GetName() == file->GetName()){
+                    index = i;
+                    break;
+                }
+            }
+            if(index > -1) mFiles.erase(index);
+        }
         
         void AddSubdirectory(std::shared_ptr<Folder> dir);
 
