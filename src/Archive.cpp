@@ -154,7 +154,7 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
             } 
 
             fileEntrySize += 0x14;
-            fileDataSize += file->GetSize();
+            fileDataSize += Util::PadTo32(file->GetSize());
         }
     }
 
@@ -250,6 +250,11 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
             fileStream.writeUInt32(0x00);
 
             fileDataStream.writeBytes(file->GetData(), file->GetSize());
+            
+            uint32_t delta = Util::PadTo32(file->GetSize()) - file->GetSize();
+            for(int x = 0; x < delta; x++){
+                fileDataStream.writeUInt8(0);
+            }
 
             currentFileIndex++;
         }
