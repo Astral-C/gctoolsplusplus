@@ -17,9 +17,10 @@ namespace Archive {
     
     class File : public std::enable_shared_from_this<File>{
         friend Rarc;
-        std::shared_ptr<Rarc> mArchive;
+        // this mount stays shared because the archive child should be valid for the lifetime of the file
         std::shared_ptr<Rarc> mMountedArchive;
-        std::shared_ptr<Folder> mParentDir;
+        std::weak_ptr<Rarc> mArchive;
+        std::weak_ptr<Folder> mParentDir;
         
         std::string mName;
         
@@ -62,7 +63,6 @@ namespace Archive {
         }
 
         File(){
-            mMountedArchive = nullptr;
             mData = nullptr;
             mSize = 0;
         }
@@ -75,8 +75,8 @@ namespace Archive {
     };
 
     class Folder : public std::enable_shared_from_this<Folder> {
-        std::shared_ptr<Rarc> mArchive;
-        std::shared_ptr<Folder> mParentDir;
+        std::weak_ptr<Rarc> mArchive;
+        std::weak_ptr<Folder> mParentDir;
 
         std::string mName;
         
@@ -89,7 +89,7 @@ namespace Archive {
         std::string GetName() { return mName; }
         void SetName(std::string name) { mName = name; }
         
-        std::shared_ptr<Folder> GetParent() { return mParentDir; }
+        std::weak_ptr<Folder> GetParent() { return mParentDir.lock(); }
         void SetParent(std::shared_ptr<Folder> dir) { mParentDir = dir; dir->AddSubdirectory(shared_from_this()); } //fix this later
 
         void SetParentUnsafe(std::shared_ptr<Folder> dir){ mParentDir = dir; }
@@ -113,7 +113,7 @@ namespace Archive {
         std::vector<std::shared_ptr<File>>& GetFiles() { return mFiles; }
         uint16_t GetFileCount() { return (uint16_t)mFiles.size() + (uint16_t)mFolders.size(); }
 
-        std::shared_ptr<Rarc> GetArchive() { return mArchive; }
+        std::weak_ptr<Rarc> GetArchive() { return mArchive.lock(); }
         void SetArchive(std::shared_ptr<Rarc> arc) { mArchive = arc; }
 
         std::shared_ptr<Folder> Copy(std::shared_ptr<Rarc> archive);
@@ -144,10 +144,7 @@ namespace Archive {
 
         Folder(std::shared_ptr<Rarc> archive);
 
-        Folder(){
-            mArchive = nullptr;
-            mParentDir = nullptr;
-        }
+        Folder(){}
         ~Folder(){}
     };
 
@@ -214,6 +211,8 @@ namespace Archive {
 
 
         Rarc(){}
-        ~Rarc(){}
+        ~Rarc(){
+            std::cout << "Freeing Archive " << mDirectories[0]->GetName() << std::endl;
+        }
     };
 }

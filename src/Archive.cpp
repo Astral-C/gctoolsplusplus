@@ -23,7 +23,6 @@ uint16_t Hash(std::string str){
 
 Folder::Folder(std::shared_ptr<Rarc> archive){
     mArchive = archive;
-    mParentDir = nullptr;
 }
 
 std::shared_ptr<File> Folder::GetFile(std::filesystem::path path) {
@@ -85,16 +84,16 @@ std::shared_ptr<Folder> Folder::Copy(std::shared_ptr<Rarc> archive){
 }
 
 void Folder::AddSubdirectory(std::shared_ptr<Folder> dir){
-    if(dir->GetArchive() != mArchive){
-        std::shared_ptr<Folder> copy = dir->Copy(mArchive);
+    if(dir->GetArchive().lock() != mArchive.lock()){
+        std::shared_ptr<Folder> copy = dir->Copy(mArchive.lock());
         AddSubdirectory(copy);
     } else {
         dir->SetParentUnsafe(GetPtr());
         mFolders.push_back(dir);
 
-        auto dirIter = std::find(mArchive->mDirectories.begin(), mArchive->mDirectories.end(), dir);
-        if(dirIter == mArchive->mDirectories.end()){
-            mArchive->mDirectories.push_back(dir); 
+        auto dirIter = std::find(mArchive.lock()->mDirectories.begin(), mArchive.lock()->mDirectories.end(), dir);
+        if(dirIter == mArchive.lock()->mDirectories.end()){
+            mArchive.lock()->mDirectories.push_back(dir); 
         }
     }
 }
@@ -294,8 +293,8 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
         fileStream.writeUInt8(0x02);
         fileStream.writeUInt8(0x00);
         fileStream.writeUInt16(0x02);
-        if(folder->GetParent() != nullptr){
-            auto dirIter = std::find(mDirectories.begin(), mDirectories.end(), folder->GetParent());
+        if(folder->GetParent().lock() != nullptr){
+            auto dirIter = std::find(mDirectories.begin(), mDirectories.end(), folder->GetParent().lock());
             fileStream.writeUInt32(dirIter - mDirectories.begin());
         } else {
             fileStream.writeUInt32((uint32_t)-1);
