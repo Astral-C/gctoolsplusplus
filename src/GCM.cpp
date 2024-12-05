@@ -190,27 +190,76 @@ bool Image::Load(bStream::CStream* stream){
         }
     }
 
-   mRoot->AddSubdirectory(files);
 
-    /*
     stream->seek(0x2440 + 0x14);
     uint32_t apploaderSize = stream->readUInt32();
-    
-    stream->seek(0x2440 + 0x18);
     uint32_t apploaderTrailerSize = stream->readUInt32();
 
     stream->seek(0x2440);
 
     // read apploader
-    uint8_t* apploader = new uint8_t[apploaderSize]{0};
-    stream->readBytesTo(apploader, apploaderSize);
+    uint8_t* apploader = new uint8_t[apploaderSize + apploaderTrailerSize + 0x20]{0};
+    stream->readBytesTo(apploader, apploaderSize + apploaderTrailerSize + 0x20);
 
     std::shared_ptr<File> apploaderFile = File::Create();
     apploaderFile->SetName("apploader.img");
-    apploaderFile->SetData(apploader, apploaderSize);
+    apploaderFile->SetData(apploader, apploaderSize + apploaderTrailerSize + 0x20);
     sys->AddFile(apploaderFile);
     delete[] apploader;
-    */
+
+    stream->seek(0x440);
+
+    // read bi2
+    uint8_t* bi2 = new uint8_t[0x2000]{0};
+    stream->readBytesTo(bi2, 0x2000);
+
+    std::shared_ptr<File> diskHeaderInfo = File::Create();
+    diskHeaderInfo->SetName("bi2.bin");
+    diskHeaderInfo->SetData(bi2, 0x2000);
+    sys->AddFile(diskHeaderInfo);
+    delete[] bi2;
+
+    stream->seek(0);
+    uint8_t* boot = new uint8_t[0x440]{0};
+    stream->readBytesTo(boot, 0x440);
+
+    std::shared_ptr<File> diskHeader = File::Create();
+    diskHeader->SetName("boot.bin");
+    diskHeader->SetData(boot, 0x440);
+    sys->AddFile(diskHeader);
+    delete[] boot;
+
+    stream->seek(fstOffset);
+    uint8_t* fstData = new uint8_t[fstSize]{0};
+    stream->readBytesTo(fstData, fstSize);
+
+    std::shared_ptr<File> fstFile = File::Create();
+    fstFile->SetName("fst.bin");
+    fstFile->SetData(fstData, fstSize);
+    sys->AddFile(fstFile);
+    delete[] fstData;
+
+    stream->seek(0x420);
+    uint32_t dolOffset = stream->readUInt32();
+    
+    uint32_t dolSize = 0x100;
+    stream->seek(dolOffset + 0x90);
+    for(uint32_t dfp = 0; dfp < 18; dfp++){
+        dolSize += stream->readUInt32();
+    }
+
+    stream->seek(dolOffset);
+    uint8_t* dolData = new uint8_t[dolSize]{0};
+    stream->readBytesTo(dolData, dolSize);
+
+    std::shared_ptr<File> dolFile = File::Create();
+    dolFile->SetName("main.dol");
+    dolFile->SetData(dolData, dolSize);
+    sys->AddFile(dolFile);
+    delete[] dolData;
+
+    mRoot->AddSubdirectory(sys);
+    mRoot->AddSubdirectory(files);
 
     return true;
 }
