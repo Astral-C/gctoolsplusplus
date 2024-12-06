@@ -163,7 +163,7 @@ namespace Disk {
 
         char mGameName[0x3E0] { 0 };
         void LoadDir(bStream::CStream* stream, std::shared_ptr<Folder> folder, std::vector<std::shared_ptr<Folder>>& folders, std::size_t& startIdx, uint32_t count, uint32_t stringTableOffset);
-        std::size_t CalculateFstSize(std::shared_ptr<Folder> folder);
+        std::size_t CalculateFstSize(std::shared_ptr<Folder> folder, std::size_t& stringTableSize);
     public:
         bool Load(bStream::CStream* stream);
         void SaveToFile(std::filesystem::path path);

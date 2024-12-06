@@ -89,32 +89,71 @@ void Folder::AddSubdirectory(std::shared_ptr<Folder> dir){
 ///
 
 
-std::size_t Image::CalculateFstSize(std::shared_ptr<Folder> folder){    
-    std::size_t size = folder->GetFiles().size() * 0xC;
+std::size_t Image::CalculateFstSize(std::shared_ptr<Folder> folder, std::size_t& stringTableSize){    
+    std::size_t size = 0;
+    for(auto f : folder->GetFiles()){
+        size += 0xC;
+        stringTableSize += f->GetName().size();
+    }
     for(auto f : folder->GetSubdirectories()){
         size += 0xC;
-        size += CalculateFstSize(f);
+        stringTableSize += f->GetName().size();
+        size += CalculateFstSize(f, stringTableSize);
     }
 
     return size;
 }
 
-void FstWriteFolder(bStream::CMemoryStream& stream, bStream::CMemoryStream& stringTable, std::shared_ptr<Folder> folder){
-    //for(auto f : folder->GetSubdirectories()){
-    //    FstWriteFolder(stream, f);
-    //}
+void FstWriteFolder(bStream::CStream& imgStream, bStream::CMemoryStream& stream, bStream::CMemoryStream& stringTable, std::shared_ptr<Folder> folder, std::size_t parentIdx, std::size_t& idx){
+    std::size_t parentIdx = idx;
+    //if not root..
+    
+    stream.writeUInt32(0x01 | (stringTable.tell() & 0x00FFFFFFFF));
+    for(char c : folder->GetName()){
+        stringTable.writeUInt8(c);
+    }
+    stringTable.writeUInt8(0);
 
-    //for(auto file : folder->GetFiles()){
-    //    stream->write
-    //}
+    stream.writeUInt32(idx);
+    std::size_t nextOffs = stream.tell();
+    stream.writeUInt32(0);
+
+    idx++;
+
+    // otherwise only write informationg
+
+    for(auto f : folder->GetSubdirectories()){
+        FstWriteFolder(imgStream, stream, stringTable, f, parentIdx, idx);
+    }
+
+    for(auto file : folder->GetFiles()){
+        std::size_t nameOffset = stringTable.tell();
+        for(char c : file->GetName()){
+            stringTable.writeUInt8(c);
+        }
+        stringTable.writeUInt8(0);
+
+        stream.writeUInt32(0x00 | (nameOffset & 0x00FFFFFFFF));
+        stream.writeUInt32(imgStream.tell());
+        stream.writeUInt32(file->GetSize());
+        idx++;
+    }
+
+    std::size_t position = stream.tell();
+    stream.seek(nextOffs);
+    stream.writeUInt32(idx);
+    stream.seek(position);
 }
 
 void Image::SaveToFile(std::filesystem::path path){
-    //std::size_t fstSize = CalculateFstSize(mRoot->GetFolder("files"));
+    std::size_t stringTableSize = 0;
+    std::size_t fstSize = CalculateFstSize(mRoot->GetFolder("files"), stringTableSize);
+    std::size_t fileDataOffset = Util::PadTo32(0x2440 + mRoot->GetFile("sys/apploader.img")->GetSize() + fstSize + stringTableSize);
 
-    //bStream::CMemoryStream fst(fstSize, bStream::Endianess::Big, bStream::OpenMode::Out);
+    bStream::CMemoryStream fst(fstSize, bStream::Endianess::Big, bStream::OpenMode::Out);
+    bStream::CMemoryStream stringTbale(stringTableSize, bStream::Endianess::Big, bStream::OpenMode::Out);
 
-
+    bStream::CFileStream imgFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
 
 }
 
@@ -196,7 +235,7 @@ bool Image::Load(bStream::CStream* stream){
     std::vector<FSTEntry> entries(numEntries+1);
     entries[0] = {
         .mAttribute = isDir,
-        .mNameOffset = 0,
+        .mNameOffset = nameOffset,
         .mFirst = parentOffset,
         .mSecond = numEntries
     };
