@@ -11,7 +11,7 @@ namespace Compression {
         YAY0
     };
 
-    size_t GetDecompressedSize(bStream::CStream* stream);
+    std::size_t GetDecompressedSize(bStream::CStream* stream);
 
     namespace Yaz0 {
         // if no length provided, it will be read as if this is a full compressed file

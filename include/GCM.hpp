@@ -30,7 +30,7 @@ namespace Disk {
         uint32_t mSize;
 
     public:
-        void SetData(unsigned char* data, size_t size){
+        void SetData(unsigned char* data, std::size_t size){
             mSize = size;
 
             if(mData != nullptr){

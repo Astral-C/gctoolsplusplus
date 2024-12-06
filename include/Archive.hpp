@@ -30,7 +30,7 @@ namespace Archive {
         std::shared_ptr<Rarc> GetMountedArchive(){ return mMountedArchive; }
 
     public:
-        void SetData(unsigned char* data, size_t size){
+        void SetData(unsigned char* data, std::size_t size){
             mSize = size;
 
             if(mData != nullptr){
@@ -157,6 +157,7 @@ namespace Archive {
         
     public:
         bool Load(bStream::CStream* stream);
+        void Save(std::vector<uint8_t>& buffer, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7);
         void SaveToFile(std::filesystem::path path, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7);
 
         // Directories should all be children of root
@@ -211,8 +212,6 @@ namespace Archive {
 
 
         Rarc(){}
-        ~Rarc(){
-            std::cout << "Freeing Archive " << mDirectories[0]->GetName() << std::endl;
-        }
+        ~Rarc(){}
     };
 }

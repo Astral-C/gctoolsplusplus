@@ -2,11 +2,11 @@
 
 namespace Compression {
 
-size_t GetDecompressedSize(bStream::CStream* stream){
-    size_t pos = stream->tell();
+std::size_t GetDecompressedSize(bStream::CStream* stream){
+    std::size_t pos = stream->tell();
 
     stream->seek(4);
-    size_t decompressedSize = stream->readUInt32();
+    std::size_t decompressedSize = stream->readUInt32();
     stream->seek(pos);
 
     return decompressedSize;
@@ -15,8 +15,8 @@ size_t GetDecompressedSize(bStream::CStream* stream){
 namespace Yaz0 {
 
 struct _MatchResult {
-    size_t position;
-    size_t length;
+    std::size_t position;
+    std::size_t length;
 };
 
 
@@ -24,7 +24,7 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
     uint32_t count = 0, src_pos = 0, dst_pos = 0;
     uint8_t bits;
 
-    size_t decompressedSize = length;
+    std::size_t decompressedSize = length;
     uint8_t* src = new uint8_t[src_data->getSize()];
     
     if(length == 0){
@@ -66,7 +66,7 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
                 len += 2;
             }
 
-            for (size_t i = 0; i < len; ++i)
+            for (std::size_t i = 0; i < len; ++i)
             {
                 dst[dst_pos] = dst[copy_src];
                 copy_src++;
@@ -85,7 +85,7 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
     delete[] dst;
 }
 
-_MatchResult findMatch(uint8_t* src, size_t readPtr, size_t matchMaxLength, size_t searchRange, size_t srcSize){
+_MatchResult findMatch(uint8_t* src, std::size_t readPtr, std::size_t matchMaxLength, std::size_t searchRange, std::size_t srcSize){
     _MatchResult result = {0, 1};
 
     if(readPtr + 2 < srcSize){
@@ -135,12 +135,12 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
     src_data->seek(0);
     src_data->readBytesTo(src, src_data->getSize());
 
-    size_t searchRange = 0x10E0 * level / 9 - 0x0E0;
+    std::size_t searchRange = 0x10E0 * level / 9 - 0x0E0;
 
-    size_t readPtr = 0;
-    size_t writePtr = 0;
-    size_t codeBytePos = 0;
-    size_t maxLength = 0x111;
+    std::size_t readPtr = 0;
+    std::size_t writePtr = 0;
+    std::size_t codeBytePos = 0;
+    std::size_t maxLength = 0x111;
 
     while(readPtr < src_data->getSize()){
         codeBytePos = writePtr++;
@@ -150,8 +150,8 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
                 break;
             }
 
-            size_t matchLength = 1;
-            size_t matchPosition = 0;
+            std::size_t matchLength = 1;
+            std::size_t matchPosition = 0;
 
             _MatchResult match = findMatch(src, readPtr, maxLength, searchRange, src_data->getSize());;
 
@@ -159,7 +159,7 @@ void Compress(bStream::CStream* src_data, bStream::CStream* dst_data, uint8_t le
             matchLength = match.length;
 
             if(matchLength > 2){
-                size_t delta = readPtr - matchPosition - 1;
+                std::size_t delta = readPtr - matchPosition - 1;
 
                 if(matchLength < 0x12) {
                     result[writePtr++] = (delta >> 8 | (matchLength - 2) << 4);
@@ -197,7 +197,7 @@ namespace Yay0 {
 void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t offset, uint32_t length){
     uint32_t expand_limit, bit_offset, expand_offset, ref_offset, read_offset, bit_count, bits;
 
-    size_t decompressedSize = length;
+    std::size_t decompressedSize = length;
     uint8_t* src = new uint8_t[src_data->getSize()];
     
     if(length == 0){
@@ -340,7 +340,7 @@ void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
 
         maxlen = 0;
 
-        for (size_t i = 0; i < windowLen; i++)
+        for (std::size_t i = 0; i < windowLen; i++)
         {
             for (length = 0; length < (windowLen - i) && length < maxCount; length++)
             {
