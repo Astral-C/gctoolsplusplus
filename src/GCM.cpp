@@ -89,7 +89,32 @@ void Folder::AddSubdirectory(std::shared_ptr<Folder> dir){
 ///
 
 
+std::size_t Image::CalculateFstSize(std::shared_ptr<Folder> folder){    
+    std::size_t size = folder->GetFiles().size() * 0xC;
+    for(auto f : folder->GetSubdirectories()){
+        size += 0xC;
+        size += CalculateFstSize(f);
+    }
+
+    return size;
+}
+
+void FstWriteFolder(bStream::CMemoryStream& stream, bStream::CMemoryStream& stringTable, std::shared_ptr<Folder> folder){
+    //for(auto f : folder->GetSubdirectories()){
+    //    FstWriteFolder(stream, f);
+    //}
+
+    //for(auto file : folder->GetFiles()){
+    //    stream->write
+    //}
+}
+
 void Image::SaveToFile(std::filesystem::path path){
+    //std::size_t fstSize = CalculateFstSize(mRoot->GetFolder("files"));
+
+    //bStream::CMemoryStream fst(fstSize, bStream::Endianess::Big, bStream::OpenMode::Out);
+
+
 
 }
 
@@ -169,7 +194,7 @@ bool Image::Load(bStream::CStream* stream){
 
     // Entries
     std::vector<FSTEntry> entries(numEntries+1);
-    entries[0] = (FSTEntry){
+    entries[0] = {
         .mAttribute = isDir,
         .mNameOffset = 0,
         .mFirst = parentOffset,
