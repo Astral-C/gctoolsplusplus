@@ -106,7 +106,6 @@ std::size_t Image::CalculateFstSize(std::shared_ptr<Folder> folder, std::size_t&
 
 void FstWriteFolder(bStream::CFileStream& imgStream, bStream::CMemoryStream& stream, bStream::CMemoryStream& stringTable, std::shared_ptr<Folder> folder, std::size_t parentIdx, std::size_t& idx){
     std::size_t nextOffs = 0;
-    std::cout << "Writing Directory " << folder->GetName() << " : " << idx << std::endl;
     if(parentIdx == 0xFFFFFFFF){ // is root
         stream.writeUInt32((0x01 << 24) | 0x00000000);
 
@@ -134,20 +133,24 @@ void FstWriteFolder(bStream::CFileStream& imgStream, bStream::CMemoryStream& str
     }
 
     for(auto file : folder->GetFiles()){
-        std::cout << "Writing File " << file->GetName() << " : " << idx << std::endl;
         std::size_t nameOffset = stringTable.tell();
         stringTable.writeString(file->GetName());
         stringTable.writeUInt8(0);
 
         stream.writeUInt32(0x00 | (nameOffset & 0x00FFFFFF));
-        std::cout << "writing file at " << std::hex << imgStream.tell() << std::endl;
         stream.writeUInt32(imgStream.tell());
         stream.writeUInt32(file->GetSize());
+        
         imgStream.writeBytes(file->GetData(), file->GetSize());
+        
+        std::size_t alignment = Util::PadTo32(imgStream.tell()) - imgStream.tell();
+        for(std::size_t pad = 0; pad < alignment; pad++){
+            imgStream.writeUInt8(0x00);
+        }
+
         idx++;
     }
 
-    std::cout << "Directory " << folder->GetName() << " Next Out Of Folder IDX : " << idx << std::endl;
     std::size_t position = stream.tell();
     stream.seek(nextOffs);
     stream.writeUInt32(idx);
@@ -179,6 +182,7 @@ void Image::SaveToFile(std::filesystem::path path){
     std::size_t firstIdx = 0;
     
     FstWriteFolder(imgFile, fst, stringTable, mRoot->GetFolder("files"), 0xFFFFFFFF, firstIdx);
+    std::size_t end = imgFile.tell();
 
     {
         bStream::CMemoryStream bootStream(bootBin->GetData(), bootBin->GetSize(), bStream::Endianess::Big, bStream::OpenMode::Out);
@@ -203,8 +207,8 @@ void Image::SaveToFile(std::filesystem::path path){
     imgFile.writeBytes(fstData, fstSize);
     imgFile.writeBytes(stringTableData, stringTableSize);
 
-    imgFile.seek(imgFile.getSize());
-    std::size_t alignment = Util::AlignTo(imgFile.getSize(), 2048);
+    imgFile.seek(end);
+    std::size_t alignment = Util::AlignTo(end, 2048) - end;
     for(std::size_t pad = 0; pad < alignment; pad++){
         imgFile.writeUInt8(0x00);
     }
