@@ -170,6 +170,7 @@ namespace Disk {
 
         // Directories should all be children of root
         std::shared_ptr<Folder> GetRoot(){ return mRoot; }
+        void SetRoot(std::shared_ptr<Folder> root){ mRoot = root; }
 
         template<typename T>
         std::shared_ptr<T> Get(std::filesystem::path path){ 

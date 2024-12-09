@@ -171,8 +171,8 @@ void Image::SaveToFile(std::filesystem::path path){
     std::size_t fstOffset = Util::AlignTo(0x2440 + apploaderBin->GetSize() + dolBin->GetSize() + 0x120, 0x100);
     std::size_t fileDataOffset = Util::AlignTo(fstOffset + fstSize + stringTableSize + 0x120, 0x100);
 
-    uint8_t* fstData = new uint8_t[fstSize](0);
-    uint8_t* stringTableData = new uint8_t[stringTableSize](0);
+    uint8_t* fstData = new uint8_t[fstSize]{0};
+    uint8_t* stringTableData = new uint8_t[stringTableSize]{0};
     bStream::CMemoryStream fst(fstData, fstSize, bStream::Endianess::Big, bStream::OpenMode::Out);
     bStream::CMemoryStream stringTable(stringTableData, stringTableSize, bStream::Endianess::Big, bStream::OpenMode::Out);
 
