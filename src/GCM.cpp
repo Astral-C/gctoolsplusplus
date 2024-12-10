@@ -168,13 +168,16 @@ void Image::SaveToFile(std::filesystem::path path){
     
     std::size_t fstSize = CalculateFstSize(mRoot->GetFolder("files"), stringTableSize) + 0xC;
     
-    std::size_t dolOffset = 0x2440 + apploaderBin->GetSize() + 0x20;
+    // This works but it probably shouldn't, pretty sure the issue is alignment.
+    // If I don't do this and update the size of one of these then often games crash
+    // ex luigi's mansion crashing when the exec is patched when repacked using this.
+    std::size_t dolOffset = 0x2440 + apploaderBin->GetSize();
     dolOffset += Util::AlignTo(dolOffset, 0x100);
     
-    std::size_t fstOffset = 0x2440 + apploaderBin->GetSize() + dolBin->GetSize() + 0x20;
+    std::size_t fstOffset = 0x2440 + apploaderBin->GetSize() + dolBin->GetSize();
     fstOffset += Util::AlignTo(fstOffset, 0x100);
 
-    std::size_t fileDataOffset = fstOffset + fstSize + stringTableSize + 0x20;
+    std::size_t fileDataOffset = fstOffset + fstSize + stringTableSize;
     fileDataOffset += Util::AlignTo(fileDataOffset, 0x100);
 
     uint8_t* fstData = new uint8_t[fstSize]{0};
