@@ -92,11 +92,11 @@ void Folder::AddSubdirectory(std::shared_ptr<Folder> dir){
 std::size_t Image::CalculateFstSize(std::shared_ptr<Folder> folder, std::size_t& stringTableSize){    
     std::size_t size = 0;
     for(auto f : folder->GetFiles()){
-        size += 0xC;
+        size += (sizeof(uint32_t) * 3);
         stringTableSize += f->GetName().size() + 1;
     }
     for(auto f : folder->GetSubdirectories()){
-        size += 0xC;
+        size += (sizeof(uint32_t) * 3);
         stringTableSize += f->GetName().size() + 1;
         size += CalculateFstSize(f, stringTableSize);
     }
@@ -158,6 +158,8 @@ void FstWriteFolder(bStream::CFileStream& imgStream, bStream::CMemoryStream& str
 }
 
 void Image::SaveToFile(std::filesystem::path path){
+    bStream::CFileStream imgFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
+    
     std::size_t fileDataSize = 0;
     std::size_t stringTableSize = 0;
 
@@ -166,32 +168,43 @@ void Image::SaveToFile(std::filesystem::path path){
     std::shared_ptr<File> bi2Bin = mRoot->GetFile("sys/bi2.bin");
     std::shared_ptr<File> dolBin = mRoot->GetFile("sys/main.dol");
     
-    std::size_t fstSize = CalculateFstSize(mRoot->GetFolder("files"), stringTableSize) + 0xC;
-    
-    // This works but it probably shouldn't, pretty sure the issue is alignment.
-    // If I don't do this and update the size of one of these then often games crash
-    // ex luigi's mansion crashing when the exec is patched when repacked using this.
-    std::size_t dolOffset = 0x2440 + apploaderBin->GetSize();
-    dolOffset += Util::AlignTo(dolOffset, 0x100);
-    
-    std::size_t fstOffset = 0x2440 + apploaderBin->GetSize() + dolBin->GetSize();
-    fstOffset += Util::AlignTo(fstOffset, 0x100);
+    std::size_t fstSize = CalculateFstSize(mRoot->GetFolder("files"), stringTableSize) + (sizeof(uint32_t) * 3);
 
-    std::size_t fileDataOffset = fstOffset + fstSize + stringTableSize;
-    fileDataOffset += Util::AlignTo(fileDataOffset, 0x100);
+    imgFile.seek(0x2440);
+    imgFile.writeBytes(apploaderBin->GetData(), apploaderBin->GetSize());
+    
+    std::size_t alignment = Util::AlignTo(imgFile.tell(), 0x100) - imgFile.tell();
+    for(std::size_t pad = 0; pad < alignment; pad++){
+        imgFile.writeUInt8(0x00);
+    }
 
-    uint8_t* fstData = new uint8_t[fstSize]{0};
-    uint8_t* stringTableData = new uint8_t[stringTableSize]{0};
+    std::size_t dolOffset = imgFile.tell();
+    imgFile.writeBytes(dolBin->GetData(), dolBin->GetSize());
+    
+    alignment = Util::AlignTo(imgFile.tell(), 0x100) - imgFile.tell();
+    for(std::size_t pad = 0; pad < alignment; pad++){
+        imgFile.writeUInt8(0x00);
+    }
+
+    std::size_t fstOffset = imgFile.tell();
+
+    uint8_t* fstData = new uint8_t[fstSize](0);
+    uint8_t* stringTableData = new uint8_t[stringTableSize](0);
     bStream::CMemoryStream fst(fstData, fstSize, bStream::Endianess::Big, bStream::OpenMode::Out);
     bStream::CMemoryStream stringTable(stringTableData, stringTableSize, bStream::Endianess::Big, bStream::OpenMode::Out);
 
-    bStream::CFileStream imgFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
-    imgFile.seek(fileDataOffset);
+    // Write dummy fst to fill in later
+    imgFile.writeBytes(fstData, fstSize);
+    imgFile.writeBytes(stringTableData, stringTableSize);
 
     std::size_t firstIdx = 0;
     
     FstWriteFolder(imgFile, fst, stringTable, mRoot->GetFolder("files"), 0xFFFFFFFF, firstIdx);
     std::size_t end = imgFile.tell();
+
+    imgFile.seek(fstOffset);
+    imgFile.writeBytes(fstData, fstSize);
+    imgFile.writeBytes(stringTableData, stringTableSize);
 
     {
         bStream::CMemoryStream bootStream(bootBin->GetData(), bootBin->GetSize(), bStream::Endianess::Big, bStream::OpenMode::Out);
@@ -208,16 +221,9 @@ void Image::SaveToFile(std::filesystem::path path){
     imgFile.writeBytes(bootBin->GetData(), bootBin->GetSize());
     imgFile.seek(0x440);
     imgFile.writeBytes(bi2Bin->GetData(), bi2Bin->GetSize());
-    imgFile.seek(0x2440);
-    imgFile.writeBytes(apploaderBin->GetData(), apploaderBin->GetSize());
-    imgFile.seek(dolOffset);
-    imgFile.writeBytes(dolBin->GetData(), dolBin->GetSize());
-    imgFile.seek(fstOffset);
-    imgFile.writeBytes(fstData, fstSize);
-    imgFile.writeBytes(stringTableData, stringTableSize);
 
     imgFile.seek(end);
-    std::size_t alignment = Util::AlignTo(end, 2048) - end;
+    alignment = Util::AlignTo(end, 2048) - end;
     for(std::size_t pad = 0; pad < alignment; pad++){
         imgFile.writeUInt8(0x00);
     }
