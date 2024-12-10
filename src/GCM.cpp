@@ -167,9 +167,15 @@ void Image::SaveToFile(std::filesystem::path path){
     std::shared_ptr<File> dolBin = mRoot->GetFile("sys/main.dol");
     
     std::size_t fstSize = CalculateFstSize(mRoot->GetFolder("files"), stringTableSize) + 0xC;
-    std::size_t dolOffset = Util::AlignTo(0x2440 + apploaderBin->GetSize() + 0x120, 0x100);
-    std::size_t fstOffset = Util::AlignTo(0x2440 + apploaderBin->GetSize() + dolBin->GetSize() + 0x120, 0x100);
-    std::size_t fileDataOffset = Util::AlignTo(fstOffset + fstSize + stringTableSize + 0x120, 0x100);
+    
+    std::size_t dolOffset = 0x2440 + apploaderBin->GetSize() + 0x20;
+    dolOffset += Util::AlignTo(dolOffset, 0x100);
+    
+    std::size_t fstOffset = 0x2440 + apploaderBin->GetSize() + dolBin->GetSize() + 0x20;
+    fstOffset += Util::AlignTo(fstOffset, 0x100);
+
+    std::size_t fileDataOffset = fstOffset + fstSize + stringTableSize + 0x20;
+    fileDataOffset += Util::AlignTo(fileDataOffset, 0x100);
 
     uint8_t* fstData = new uint8_t[fstSize]{0};
     uint8_t* stringTableData = new uint8_t[stringTableSize]{0};
