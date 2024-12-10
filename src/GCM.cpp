@@ -185,7 +185,7 @@ void Image::SaveToFile(std::filesystem::path path){
     bStream::CMemoryStream fst(fstData, fstSize, bStream::Endianess::Big, bStream::OpenMode::Out);
     bStream::CMemoryStream stringTable(stringTableData, stringTableSize, bStream::Endianess::Big, bStream::OpenMode::Out);
 
-    bStream::CFileStream imgFile(path, bStream::Endianess::Big, bStream::OpenMode::Out);
+    bStream::CFileStream imgFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
     imgFile.seek(fileDataOffset);
 
     std::size_t firstIdx = 0;
