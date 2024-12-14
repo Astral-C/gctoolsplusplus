@@ -285,6 +285,16 @@ void Image::LoadDir(bStream::CStream* stream, std::shared_ptr<Folder> folder, st
 
 // Needs error checking
 bool Image::Load(bStream::CStream* stream){
+    stream->seek(0x000);
+    if(stream->readUInt32() == static_cast<uint32_t>('CISO')){
+        return false;
+    }    
+
+    stream->seek(0x200);
+    if(stream->readUInt32() == static_cast<uint32_t>('NKIT')){
+        return false;
+    }
+
     mRoot = Folder::Create(GetPtr());
     mRoot->SetName("root");
     std::shared_ptr<Folder> sys = Folder::Create(GetPtr());
