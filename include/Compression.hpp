@@ -21,7 +21,7 @@ namespace Compression {
 
     namespace Yay0 {
         void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t offset=0, uint32_t length=0);
-        void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data);
+        void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data, bool padCompressedFile=false);
     }
 
 }

@@ -301,7 +301,7 @@ void Decompress(bStream::CStream* src_data, bStream::CStream* dst_data, uint32_t
 }
 
 // Adapted from Cuyler36's GCNToolkit.
-void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
+void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data, bool padCompressedFile){
     const uint32_t OFSBITS = 12;
     int32_t decPtr = 0;
     
@@ -407,6 +407,10 @@ void Compress(bStream::CStream*  src_data, bStream::CStream* dst_data){
     dst_data->seek(chunkSecOff);
     dst_data->writeBytes((uint8_t*)chunkBuffer, chunkPtr);
 
+    if(padCompressedFile){
+        while(dst_data->tell() < Util::AlignTo(dst_data->getSize(), 0x20)) { dst_data->writeUInt8(0); }
+    }
+    
     delete[] maskBuffer;
     delete[] linkBuffer;
     delete[] chunkBuffer;
