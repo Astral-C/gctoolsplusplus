@@ -163,7 +163,7 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
 }
 
 
-void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compression, uint8_t compressionLevel){
+void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compression, uint8_t compressionLevel, bool padCompressed){
 
     std::map<std::string, uint32_t> archiveSizes = CalculateArchiveSizes();
 
@@ -332,6 +332,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
             {
                 bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
                 outFile.writeBytes(archiveData, archiveSizes["total"]);
+                if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
             }
             break;
         
@@ -341,6 +342,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
                 bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yay0::Compress(&archiveOut, &outFile);
+                if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
             }
             break; 
         case Compression::Format::YAZ0:
@@ -349,6 +351,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
                 bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yaz0::Compress(&archiveOut, &outFile, compressionLevel);
+                if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
             }
             break; 
     }
@@ -357,7 +360,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
     delete[] archiveData;
 }
 
-void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, uint8_t compressionLevel){
+void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, uint8_t compressionLevel, bool padCompressed){
     std::map<std::string, uint32_t> archiveSizes = CalculateArchiveSizes();
 
     uint8_t* archiveData = new uint8_t[archiveSizes["total"]];
@@ -535,7 +538,7 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
 
                 Compression::Yay0::Compress(&archiveOut, &compressedOut);
 
-                buffer.resize(compressedOut.getSize());
+                buffer.resize(padCompressed ? Util::AlignTo(compressedOut.getSize(), 0x20) : compressedOut.getSize());
                 std::memcpy(buffer.data(), compressedOut.getBuffer(), compressedOut.getSize());
             }
             break; 
@@ -546,7 +549,7 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
 
                 Compression::Yaz0::Compress(&archiveOut, &compressedOut, compressionLevel);
 
-                buffer.resize(compressedOut.getSize());
+                buffer.resize(padCompressed ? Util::AlignTo(compressedOut.getSize(), 0x20) : compressedOut.getSize());
                 std::memcpy(buffer.data(), compressedOut.getBuffer(), compressedOut.getSize());
             }
             break; 

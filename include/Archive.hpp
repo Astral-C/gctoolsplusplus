@@ -157,8 +157,8 @@ namespace Archive {
         
     public:
         bool Load(bStream::CStream* stream);
-        void Save(std::vector<uint8_t>& buffer, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7);
-        void SaveToFile(std::filesystem::path path, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7);
+        void Save(std::vector<uint8_t>& buffer, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false);
+        void SaveToFile(std::filesystem::path path, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false);
 
         // Directories should all be children of root
         std::shared_ptr<Folder> GetRoot(){ return mDirectories[0]; }
