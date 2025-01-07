@@ -669,7 +669,7 @@ void Bti::Save(bStream::CStream* stream){
     }
 }
 
-uint8_t* Bti::Load(bStream::CStream* stream){
+bool Bti::Load(bStream::CStream* stream){
     mFormat = stream->readUInt8();
     mEnableAlpha = stream->readUInt8();
 
@@ -696,6 +696,9 @@ uint8_t* Bti::Load(bStream::CStream* stream){
     mLODBias = stream->readUInt16();
     uint32_t imageDataOffset = stream->readUInt32();
 
+    if(mWidth == 0 || mHeight == 0){
+        return false;
+    }
 
     stream->seek(imageDataOffset);
 
@@ -731,5 +734,5 @@ uint8_t* Bti::Load(bStream::CStream* stream){
         break;
     }
 
-    return mImageData;
+    return true;
 }

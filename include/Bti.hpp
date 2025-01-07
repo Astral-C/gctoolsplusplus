@@ -58,7 +58,7 @@ public:
     uint8_t GetFormat() { return mFormat; }
     uint8_t* GetData() { return mImageData; }
 
-    uint8_t* Load(bStream::CStream* stream);
+    bool Load(bStream::CStream* stream);
     void Save(bStream::CStream* stream);
     void SetData(uint16_t width, uint16_t height, uint8_t* imageData);
     void SetFormat(uint8_t fmt) { mFormat = fmt; }
