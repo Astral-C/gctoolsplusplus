@@ -1,4 +1,3 @@
-#define BSTREAM_IMPLEMENTATION
 #include "Bti.hpp"
 #include "Util.hpp"
 #include <cmath>
