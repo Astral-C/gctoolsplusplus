@@ -188,8 +188,8 @@ void Image::SaveToFile(std::filesystem::path path){
 
     std::size_t fstOffset = imgFile.tell();
 
-    uint8_t* fstData = new uint8_t[fstSize](0);
-    uint8_t* stringTableData = new uint8_t[stringTableSize](0);
+    uint8_t* fstData = new uint8_t[fstSize]{0};
+    uint8_t* stringTableData = new uint8_t[stringTableSize]{0};
     bStream::CMemoryStream fst(fstData, fstSize, bStream::Endianess::Big, bStream::OpenMode::Out);
     bStream::CMemoryStream stringTable(stringTableData, stringTableSize, bStream::Endianess::Big, bStream::OpenMode::Out);
 
