@@ -760,6 +760,7 @@ bool TplImage::Load(bStream::CStream* stream){
         return false;
     }
 
+    std::cout << "reading" << std::endl;
     stream->seek(imageDataOffset);
 
     if(mImageData != nullptr){
@@ -815,7 +816,7 @@ void TplImage::SetData(uint16_t width, uint16_t height, uint8_t* imageData){
 }
 
 void Tpl::SetData(std::size_t idx, uint16_t width, uint16_t height, uint8_t* imageData){
-    mImages[idx].SetData(width, height, imageData);
+    mImages[idx]->SetData(width, height, imageData);
 }
 
 void Tpl::Save(bStream::CStream* stream){
@@ -846,7 +847,8 @@ bool Tpl::Load(bStream::CStream* stream){
     for(auto [imgOffset, palOffset] : imgHeaders){
         stream->seek(imgOffset);
         
-        mImages[imgIndex].Load(stream);
+        mImages[imgIndex] = std::make_shared<TplImage>();
+        mImages[imgIndex]->Load(stream);
         imgIndex++;
     }
 

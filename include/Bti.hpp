@@ -1,6 +1,7 @@
 #pragma once
 #include "bstream.h"
 #include <vector>
+#include <memory>
 
 namespace ImageFormat {
     namespace Decode {
@@ -78,7 +79,7 @@ class TplImage {
     uint32_t mMaxLOD { 0 };
     uint8_t mEdgeLODEnabled { 0 };
     float mLODBias { 0 };
-    uint8_t* mImageData;
+    uint8_t* mImageData { nullptr };
 
 public:
     uint16_t mWidth { 0 };
@@ -98,12 +99,12 @@ public:
 
 class Tpl {
     uint32_t mNumImages { 0 };
-    std::vector<TplImage> mImages {};
+    std::vector<std::shared_ptr<TplImage>> mImages {};
 
 public:
 
-    TplImage* NewImage(){ mImages.push_back(TplImage()); return &mImages.back(); }
-    TplImage* GetImage(std::size_t idx) { return &mImages[idx]; }
+    std::shared_ptr<TplImage> NewImage(){ mImages.push_back(std::make_shared<TplImage>()); return mImages.back(); }
+    std::shared_ptr<TplImage> GetImage(std::size_t idx) { return mImages[idx]; }
 
     void SetData(std::size_t idx, uint16_t width, uint16_t height, uint8_t* imageData);
 
