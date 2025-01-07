@@ -106,6 +106,8 @@ public:
     std::shared_ptr<TplImage> NewImage(){ mImages.push_back(std::make_shared<TplImage>()); return mImages.back(); }
     std::shared_ptr<TplImage> GetImage(std::size_t idx) { return mImages[idx]; }
 
+    std::vector<std::shared_ptr<TplImage>>& GetImages() { return mImages; }
+
     void SetData(std::size_t idx, uint16_t width, uint16_t height, uint8_t* imageData);
 
     bool Load(bStream::CStream* stream);
