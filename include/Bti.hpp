@@ -67,3 +67,50 @@ public:
     ~Bti(){ if(mImageData != nullptr){ delete[] mImageData; } }
 
 };
+
+class TplImage {
+    uint32_t mFormat { 0 };
+    uint32_t mWrapS { 0 };
+    uint32_t mWrapT { 0 };
+    uint32_t mMinFilterType { 0 };
+    uint32_t mMagFilterType { 0 };
+    uint32_t mMinLOD { 0 };
+    uint32_t mMaxLOD { 0 };
+    uint8_t mEdgeLODEnabled { 0 };
+    float mLODBias { 0 };
+    uint8_t* mImageData;
+
+public:
+    uint16_t mWidth { 0 };
+    uint16_t mHeight { 0 };
+
+    uint8_t GetFormat() { return mFormat; }
+    void SetFormat(uint8_t fmt) { mFormat = fmt; }
+    void SetData(uint16_t width, uint16_t height, uint8_t* imageData);
+    uint8_t* GetData() { return mImageData; }
+
+    bool Load(bStream::CStream* stream);
+    void Save(bStream::CStream* stream);
+
+    TplImage(){}
+    ~TplImage() { if(mImageData != nullptr){ delete[] mImageData; } }
+};
+
+class Tpl {
+    uint32_t mNumImages { 0 };
+    std::vector<TplImage> mImages {};
+
+public:
+
+    TplImage* NewImage(){ mImages.push_back(TplImage()); return &mImages.back(); }
+    TplImage* GetImage(std::size_t idx) { return &mImages[idx]; }
+
+    void SetData(std::size_t idx, uint16_t width, uint16_t height, uint8_t* imageData);
+
+    bool Load(bStream::CStream* stream);
+    void Save(bStream::CStream* stream);
+
+    Tpl(){}
+    ~Tpl(){}
+
+};

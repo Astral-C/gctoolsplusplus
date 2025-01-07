@@ -736,3 +736,119 @@ bool Bti::Load(bStream::CStream* stream){
 
     return true;
 }
+
+bool TplImage::Load(bStream::CStream* stream){
+    mHeight = stream->readUInt16();
+    mWidth = stream->readUInt16();
+
+    mFormat = stream->readUInt32();
+        
+    uint32_t imageDataOffset = stream->readUInt32();
+
+    mWrapS = stream->readUInt32();
+    mWrapT = stream->readUInt32();
+    mMinFilterType = stream->readUInt32();
+    mMagFilterType = stream->readUInt32();
+    mLODBias = stream->readFloat();
+    mEdgeLODEnabled = stream->readUInt8();
+    mMinLOD = stream->readUInt8();
+    mMaxLOD = stream->readUInt8();
+    
+    stream->skip(1);
+
+    if(mWidth == 0 || mHeight == 0){
+        return false;
+    }
+
+    stream->seek(imageDataOffset);
+
+    if(mImageData != nullptr){
+        delete[] mImageData;
+    }
+
+    mImageData = new uint8_t[mWidth * mHeight * 4]{0};
+
+    switch (mFormat){
+    case 0x00:
+        ImageFormat::Decode::I4(stream, mWidth, mHeight, mImageData);
+        break;
+    case 0x01:
+        ImageFormat::Decode::I8(stream, mWidth, mHeight, mImageData);
+        break;
+    case 0x02:
+        ImageFormat::Decode::IA4(stream, mWidth, mHeight, mImageData);
+        break;
+    case 0x03:
+        ImageFormat::Decode::IA8(stream, mWidth, mHeight, mImageData);
+        break;
+    case 0x04:
+        ImageFormat::Decode::RGB565(stream, mWidth, mHeight, mImageData);
+        break;
+    case 0x05:
+        ImageFormat::Decode::RGB5A3(stream, mWidth, mHeight, mImageData);
+        break;
+    case 0x0E:
+        ImageFormat::Decode::CMPR(stream, mWidth, mHeight, mImageData);
+        break;
+    default:
+        break;
+    }
+    
+    return true;
+
+}
+
+void TplImage::Save(bStream::CStream* stream){
+
+}
+
+void TplImage::SetData(uint16_t width, uint16_t height, uint8_t* imageData){
+    if(mWidth != width || mHeight != height){
+        delete[] mImageData;
+        mImageData = new uint8_t[width*height*4]{0};
+    }
+
+    mWidth = width;
+    mHeight = height;
+
+    std::memcpy(mImageData, imageData, (mWidth*mHeight*4));
+}
+
+void Tpl::SetData(std::size_t idx, uint16_t width, uint16_t height, uint8_t* imageData){
+    mImages[idx].SetData(width, height, imageData);
+}
+
+void Tpl::Save(bStream::CStream* stream){
+}
+
+bool Tpl::Load(bStream::CStream* stream){
+    uint32_t magic = stream->readUInt32();
+
+    if(magic != 0x0020AF30){
+        return false;
+    }
+
+    mNumImages = stream->readUInt32();
+    mImages.resize(mNumImages);
+
+    uint32_t imgTableOffset = stream->readUInt32();
+
+    stream->seek(imgTableOffset);
+
+    std::vector<std::pair<uint32_t, uint32_t>> imgHeaders(mNumImages);
+
+    for (size_t i = 0; i < mNumImages; i++){
+        imgHeaders[i].first = stream->readUInt32();
+        imgHeaders[i].second = stream->readUInt32();
+    }
+    
+    uint32_t imgIndex = 0;
+    for(auto [imgOffset, palOffset] : imgHeaders){
+        stream->seek(imgOffset);
+        
+        mImages[imgIndex].Load(stream);
+        imgIndex++;
+    }
+
+    return true;
+}
