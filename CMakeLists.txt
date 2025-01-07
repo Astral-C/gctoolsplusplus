@@ -13,3 +13,6 @@ file(GLOB_RECURSE GCTOOLSPLUS_SRC
 )
 
 add_library(gctools++ STATIC ${GCTOOLSPLUS_SRC})
+
+add_executable(decompress test/main.cpp)
+target_link_libraries(decompress gctools++)
