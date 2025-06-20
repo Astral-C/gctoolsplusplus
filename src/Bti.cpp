@@ -1,7 +1,13 @@
 #include "Bti.hpp"
 #include "Util.hpp"
+#include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <vector>
+#include <array>
+#include <tuple>
 
 namespace ColorFormat {
 
@@ -43,7 +49,7 @@ uint16_t RGBA8toIA8(uint8_t r, uint8_t g, uint8_t  b, uint8_t a){
 uint16_t RGBA8toRGB565(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     uint16_t color = 0x0000;
     color |= ((r >> 3) & 0x1F) << 11;
-    color |= ((g >> 2) & 0x3F) << 5; 
+    color |= ((g >> 2) & 0x3F) << 5;
     color |= ((b >> 3) & 0x1F) << 0;
 	return color;
 }
@@ -292,7 +298,7 @@ namespace Decode {
 
     void I4(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData){
         if(imageData == nullptr) return;
-                
+
         // Iterate the blocks in the image
         for (int blockY = 0; blockY < height; blockY += 8) {
             for (int blockX = 0; blockX < width; blockX += 8) {
@@ -300,7 +306,7 @@ namespace Decode {
                 for (int pixelY = 0; pixelY < 8; pixelY++) {
                     for (int pixelX = 0; pixelX < 8; pixelX += 2) {
                         uint8_t data = stream->readUInt8();
-                        
+
                         // Bounds check to ensure the pixel is within the image.
                         if (blockY + pixelY >= height)
                             continue;
@@ -418,7 +424,173 @@ namespace Decode {
 }
 
 namespace Encode {
-    void CMPR(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData){}
+
+    // Based off of gclib by lagolunatic
+    namespace DXT {
+        inline int ColorDist(std::array<uint8_t, 4> a, std::array<uint8_t, 4> b){
+            return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2]);
+        }
+
+        std::pair<std::array<uint8_t, 4>, std::array<uint8_t, 4>> GetKeyColors(std::array<std::array<uint8_t, 4>, 16> colors){
+            std::pair<std::array<uint8_t, 4>, std::array<uint8_t, 4>> keyColors;
+
+            int maxDist = -1;
+            for(int i = 0; i < 16; i++){
+                std::array<uint8_t, 4> color0 = colors[i];
+                for(int j = i+1; j < 16; j++){
+                    std::array<uint8_t, 4> color1 = colors[j];
+                    int curDist = ColorDist(color0, color1);
+                    if(curDist > maxDist){
+                        maxDist = curDist;
+                        keyColors.first = color0;
+                        keyColors.second = color1;
+                    }
+                }
+            }
+
+            if(maxDist == -1){
+                return {{0x00, 0x00, 0x00, 0xFF}, {0xFF, 0xFF, 0xFF, 0xFF}};
+            } else {
+                int r1 = keyColors.first[0];
+                int g1 = keyColors.first[1];
+                int b1 = keyColors.first[2];
+                int r2 = keyColors.second[0];
+                int g2 = keyColors.second[1];
+                int b2 = keyColors.second[2];
+                keyColors.first[3] = 0xFF;
+                keyColors.second[3] = 0xFF;
+
+                if((r1 >> 3) == (r2 >> 3) && (g1 >> 2) == (g2 >> 2) && (b1 >> 3) == (b2 >> 3)){
+                    if((r1 >> 3) == 0 && (g1 >> 2) == 0 && (b1 >> 3) == 0){
+                        keyColors.second = {0xFF, 0xFF, 0xFF, 0xFF};
+                    } else {
+                        keyColors.second = {0x00, 0x00, 0x00, 0xFF};
+                    }
+                }
+            }
+
+            return keyColors;
+        }
+
+        std::array<std::array<uint8_t, 4>, 4> InterpolateColors(std::array<uint8_t, 4> c0, std::array<uint8_t, 4> c1, uint16_t c0565, uint16_t c1565){
+            std::array<std::array<uint8_t, 4>, 4> colors;
+            colors[0] = c0;
+            colors[1] = c1;
+            if(c0565 > c1565){
+                colors[2] = {
+                    static_cast<uint8_t>(floor((2*c0[0] + 1*c1[0]) / 3.0f)),
+                    static_cast<uint8_t>(floor((2*c0[1] + 1*c1[1]) / 3.0f)),
+                    static_cast<uint8_t>(floor((2*c0[2] + 1*c1[2]) / 3.0f)),
+                    0xFF
+                };
+                colors[3] = {
+                    static_cast<uint8_t>(floor((1*c0[0] + 2*c1[0]) / 3.0f)),
+                    static_cast<uint8_t>(floor((1*c0[1] + 2*c1[1]) / 3.0f)),
+                    static_cast<uint8_t>(floor((1*c0[2] + 2*c1[2]) / 3.0f)),
+                    0xFF
+                };
+            } else {
+                colors[2] = {static_cast<uint8_t>(floor(c0[0]/2.0f)+floor(c1[0]/2.0f)), static_cast<uint8_t>(floor(c0[1]/2.0f)+floor(c1[1]/2.0f)), static_cast<uint8_t>(floor(c0[2]/2.0f)+floor(c1[2]/2.0f)), 0xFF};
+                colors[3] = {0,0,0,0};
+            }
+            return colors;
+        }
+
+        uint32_t GetNearestColorIndex(std::array<uint8_t, 4> color, std::array<std::array<uint8_t, 4>, 4> colorsInterp){
+            if(color[3] < 16){
+                for(int i = 0; i < 4; i++){
+                    if(colorsInterp[i][3] == 0) return i;
+                }
+            }
+
+            int minDist = INT_MAX;
+            int idx = 0;
+
+            for(int i = 0; i < 4; i++){
+                int curDist = ColorDist(color, colorsInterp[i]);
+                if(curDist < minDist){
+                    if(curDist == 0) return i;
+                    minDist = curDist;
+                    idx = i;
+                }
+            }
+
+            return idx;
+        }
+    }
+
+    void CMPR(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData){
+        if (width == 0 || height == 0) return;
+
+        // Iterate the blocks in the image
+        for (int tileY = 0; tileY < height; tileY += 8) {
+            for (int tileX = 0; tileX < width; tileX += 8) {
+                for(int sb = 0; sb < 4; sb++){
+                    int sbx = tileX + (sb % 2) * 4;
+                    int sby = tileY + floor(sb / 2.0f) * 4;
+
+                    std::array<std::array<uint8_t, 4>, 16> colors;
+                    bool transparent = false;
+                    for(int i = 0; i < 16; i++){
+                        int x = (i % 4) + sbx;
+                        int y = floor(i / 4.0f) + sby;
+                        if(x >= width || y >= height) continue;
+
+                        uint32_t pixel = ((y * width) + x)*4;
+
+                        std::array<uint8_t, 4> color = {imageData[pixel+0], imageData[pixel+1], imageData[pixel+2], imageData[pixel+3]};
+                        if(color[3] < 16){
+                            transparent = true;
+                        } else {
+                            colors[i] = color;
+                        }
+                    }
+
+                    auto keyColors = DXT::GetKeyColors(colors);
+                    auto c0 = keyColors.first;
+                    auto c1 = keyColors.second;
+
+                    uint16_t c0565 = ColorFormat::RGBA8toRGB565(c0[0], c0[1], c0[2], c0[3]);
+                    uint16_t c1565 = ColorFormat::RGBA8toRGB565(c1[0], c1[1], c1[2], c1[3]);
+
+                    if(transparent && c0565 > c1565){
+                        std::swap(c0565, c1565);
+                        std::swap(c0, c1);
+                    } else if(!transparent && c0565 < c1565){
+                        std::swap(c0565, c1565);
+                        std::swap(c0, c1);
+                    }
+
+                    // interp
+                    auto colorsInterp = DXT::InterpolateColors(c0, c1, c0565, c1565);
+
+                    stream->writeUInt16(c0565);
+                    stream->writeUInt16(c1565);
+
+                    uint32_t indices = 0;
+                    for(int i = 0; i < 16; i++){
+                        int x = (i % 4) + sbx;
+                        int y = floor(i / 4.0f) + sby;
+                        if(x >= width || y >= height) continue;
+
+                        uint32_t pixel = ((y * width) + x)*4;
+                        std::array<uint8_t, 4> color = {imageData[pixel+0], imageData[pixel+1], imageData[pixel+2], imageData[pixel+3]};
+
+                        auto c = std::find(colorsInterp.begin(), colorsInterp.end(), color);
+                        uint32_t colorIndex = 0;
+                        if(c != colorsInterp.end()){
+                            colorIndex = c - colorsInterp.begin();
+                        } else {
+                            colorIndex = DXT::GetNearestColorIndex(color, colorsInterp);
+                        }
+                        indices |= (colorIndex << ((15-i)*2));
+                    }
+                    stream->writeUInt32(indices);
+                }
+            }
+        }
+    }
+
     void RGB565(bStream::CStream* stream, uint16_t width, uint16_t height, uint8_t* imageData){
         if (width == 0 || height == 0)
             return;
@@ -493,7 +665,7 @@ namespace Encode {
 
         uint32_t numBlocksW = width / 8;
         uint32_t numBlocksH = height / 8;
-                
+
         // Iterate the blocks in the image
         for (int blockY = 0; blockY < numBlocksH; blockY++) {
             for (int blockX = 0; blockX < numBlocksW; blockX++) {
@@ -619,7 +791,7 @@ void Bti::Save(bStream::CStream* stream){
 
     stream->writeUInt16(mWidth);
     stream->writeUInt16(mHeight);
-    
+
     stream->writeUInt8(mWrapS);
     stream->writeUInt8(mWrapT);
     stream->writeUInt16(mPaletteFormat);
@@ -639,7 +811,7 @@ void Bti::Save(bStream::CStream* stream){
 
     std::size_t dataOffset = Util::PadTo32(stream->tell()+sizeof(uint32_t));
     stream->writeUInt32(dataOffset);
-    
+
     while(stream->tell() != dataOffset) stream->writeUInt8(0);
 
     switch (mFormat){
@@ -742,7 +914,7 @@ bool TplImage::Load(bStream::CStream* stream){
     mWidth = stream->readUInt16();
 
     mFormat = stream->readUInt32();
-        
+
     uint32_t imageDataOffset = stream->readUInt32();
 
     mWrapS = stream->readUInt32();
@@ -753,7 +925,7 @@ bool TplImage::Load(bStream::CStream* stream){
     mEdgeLODEnabled = stream->readUInt8();
     mMinLOD = stream->readUInt8();
     mMaxLOD = stream->readUInt8();
-    
+
     stream->skip(1);
 
     if(mWidth == 0 || mHeight == 0){
@@ -794,7 +966,7 @@ bool TplImage::Load(bStream::CStream* stream){
     default:
         break;
     }
-    
+
     return true;
 
 }
@@ -842,11 +1014,11 @@ bool Tpl::Load(bStream::CStream* stream){
         imgHeaders[i].first = stream->readUInt32();
         imgHeaders[i].second = stream->readUInt32();
     }
-    
+
     uint32_t imgIndex = 0;
     for(auto [imgOffset, palOffset] : imgHeaders){
         stream->seek(imgOffset);
-        
+
         mImages[imgIndex] = std::make_shared<TplImage>();
         mImages[imgIndex]->Load(stream);
         imgIndex++;
