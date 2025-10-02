@@ -1,5 +1,6 @@
 #include "Archive.hpp"
 #include "Util.hpp"
+#include "bstream.h"
 #include <algorithm>
 #include <map>
 
@@ -13,7 +14,7 @@ uint16_t Hash(std::string str){
         hash += (uint16_t)str[i];
         hash &= 0xFFFF;
     }
-    
+
     return hash;
 }
 
@@ -93,7 +94,7 @@ void Folder::AddSubdirectory(std::shared_ptr<Folder> dir){
 
         auto dirIter = std::find(mArchive.lock()->mDirectories.begin(), mArchive.lock()->mDirectories.end(), dir);
         if(dirIter == mArchive.lock()->mDirectories.end()){
-            mArchive.lock()->mDirectories.push_back(dir); 
+            mArchive.lock()->mDirectories.push_back(dir);
         }
     }
 }
@@ -105,6 +106,7 @@ void Folder::AddSubdirectory(std::shared_ptr<Folder> dir){
 bool File::MountAsArchive(){
     std::shared_ptr<Rarc> arc =  Rarc::Create();
 
+    // There needs to be some way to specify endian here, maybe check magic and load it smart?
     bStream::CMemoryStream stream(mData, mSize, bStream::Endianess::Big, bStream::OpenMode::In);
 
     if(arc->Load(&stream)){
@@ -112,7 +114,7 @@ bool File::MountAsArchive(){
         return true;
     } else {
         mMountedArchive = nullptr;
-        return false; 
+        return false;
     }
 
 }
@@ -124,7 +126,7 @@ bool File::MountAsArchive(){
 
 std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
     uint32_t size = 0x40;
-    
+
     std::map<std::string, bool> isUniqueStr;
 
     uint32_t dirEntrySize = 0x00; //??
@@ -134,14 +136,14 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
 
     for(auto dir : mDirectories){
         dirEntrySize += 0x10;
-        
+
         if(isUniqueStr.count(dir->GetName()) == 0){
             strTableSize += dir->GetName().size() + 1;
             isUniqueStr.insert({dir->GetName(), true});
-        } 
-        
+        }
+
         fileEntrySize += 0x14 + 0x14; // . and .. entries
-        
+
         for(auto subdir : dir->GetSubdirectories()){
             fileEntrySize += 0x14;
         }
@@ -150,7 +152,7 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
             if(isUniqueStr.count(file->GetName()) == 0){
                 strTableSize += file->GetName().size() + 1;
                 isUniqueStr.insert({file->GetName(), true});
-            } 
+            }
 
             fileEntrySize += 0x14;
             fileDataSize += Util::PadTo32(file->GetSize());
@@ -163,31 +165,31 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
 }
 
 
-void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compression, uint8_t compressionLevel, bool padCompressed){
+void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compression, uint8_t compressionLevel, bool padCompressed, bStream::Endianess endianess){
 
     std::map<std::string, uint32_t> archiveSizes = CalculateArchiveSizes();
 
 
     uint8_t* archiveData = new uint8_t[archiveSizes["total"]];
     memset(archiveData, 0, archiveSizes["total"]);
-    
+
     uint8_t* fileSystemChunk = archiveData + 0x20;
     uint8_t* dirChunk = archiveData + 0x40;
     uint8_t* fileChunk = archiveData + 0x40 + archiveSizes["dirEntries"];
     uint8_t* strTableChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"];
     uint8_t* fileDataChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"] + archiveSizes["strTable"];
-    
-    bStream::CMemoryStream headerStream(archiveData, 0x20, bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], bStream::Endianess::Big, bStream::OpenMode::Out);
+
+    bStream::CMemoryStream headerStream(archiveData, 0x20, endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], endianess, bStream::OpenMode::Out);
 
     // Generate String Table
 
     std::map<std::string, uint32_t> stringTable{{".", 0x00}, {"..", 0x02}};
-    
+
     stringTableStream.writeString(".");
     stringTableStream.writeUInt8(0x00);
     stringTableStream.writeString("..");
@@ -249,7 +251,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
             fileStream.writeUInt32(0x00);
 
             fileDataStream.writeBytes(file->GetData(), file->GetSize());
-            
+
             uint32_t delta = Util::PadTo32(file->GetSize()) - file->GetSize();
             for(int x = 0; x < delta; x++){
                 fileDataStream.writeUInt8(0);
@@ -286,7 +288,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
         fileStream.writeUInt32(i);
         fileStream.writeUInt32(0x10);
         fileStream.writeUInt32(0x00);
-        
+
         // And write ..
         fileStream.writeUInt16(0xFFFF);
         fileStream.writeUInt16(Hash(".."));
@@ -330,59 +332,59 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
     switch(compression){
         case Compression::Format::None:
             {
-                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CFileStream outFile(path.string(), endianess, bStream::OpenMode::Out);
                 outFile.writeBytes(archiveData, archiveSizes["total"]);
                 if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
             }
             break;
-        
+
         case Compression::Format::YAY0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
-                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
+                bStream::CFileStream outFile(path.string(), endianess, bStream::OpenMode::Out);
 
                 Compression::Yay0::Compress(&archiveOut, &outFile);
                 if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
             }
-            break; 
+            break;
         case Compression::Format::YAZ0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
-                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
+                bStream::CFileStream outFile(path.string(), endianess, bStream::OpenMode::Out);
 
                 Compression::Yaz0::Compress(&archiveOut, &outFile, compressionLevel);
                 if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
             }
-            break; 
+            break;
     }
 
 
     delete[] archiveData;
 }
 
-void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, uint8_t compressionLevel, bool padCompressed){
+void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, uint8_t compressionLevel, bool padCompressed, bStream::Endianess endianess){
     std::map<std::string, uint32_t> archiveSizes = CalculateArchiveSizes();
 
     uint8_t* archiveData = new uint8_t[archiveSizes["total"]];
     memset(archiveData, 0, archiveSizes["total"]);
-    
+
     uint8_t* fileSystemChunk = archiveData + 0x20;
     uint8_t* dirChunk = archiveData + 0x40;
     uint8_t* fileChunk = archiveData + 0x40 + archiveSizes["dirEntries"];
     uint8_t* strTableChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"];
     uint8_t* fileDataChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"] + archiveSizes["strTable"];
-    
-    bStream::CMemoryStream headerStream(archiveData, 0x20, bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], bStream::Endianess::Big, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], bStream::Endianess::Big, bStream::OpenMode::Out);
+
+    bStream::CMemoryStream headerStream(archiveData, 0x20, endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], endianess, bStream::OpenMode::Out);
 
     // Generate String Table
 
     std::map<std::string, uint32_t> stringTable{{".", 0x00}, {"..", 0x02}};
-    
+
     stringTableStream.writeString(".");
     stringTableStream.writeUInt8(0x00);
     stringTableStream.writeString("..");
@@ -444,7 +446,7 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
             fileStream.writeUInt32(0x00);
 
             fileDataStream.writeBytes(file->GetData(), file->GetSize());
-            
+
             uint32_t delta = Util::PadTo32(file->GetSize()) - file->GetSize();
             for(int x = 0; x < delta; x++){
                 fileDataStream.writeUInt8(0);
@@ -481,7 +483,7 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
         fileStream.writeUInt32(i);
         fileStream.writeUInt32(0x10);
         fileStream.writeUInt32(0x00);
-        
+
         // And write ..
         fileStream.writeUInt16(0xFFFF);
         fileStream.writeUInt16(Hash(".."));
@@ -530,29 +532,29 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
                 std::memcpy(buffer.data(), archiveData, archiveSizes["total"]);
             }
             break;
-        
+
         case Compression::Format::YAY0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
-                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
+                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), endianess, bStream::OpenMode::Out);
 
                 Compression::Yay0::Compress(&archiveOut, &compressedOut);
 
                 buffer.resize(padCompressed ? Util::AlignTo(compressedOut.getSize(), 0x20) : compressedOut.getSize());
                 std::memcpy(buffer.data(), compressedOut.getBuffer(), compressedOut.getSize());
             }
-            break; 
+            break;
         case Compression::Format::YAZ0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
-                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), bStream::Endianess::Big, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
+                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), endianess, bStream::OpenMode::Out);
 
                 Compression::Yaz0::Compress(&archiveOut, &compressedOut, compressionLevel);
 
                 buffer.resize(padCompressed ? Util::AlignTo(compressedOut.getSize(), 0x20) : compressedOut.getSize());
                 std::memcpy(buffer.data(), compressedOut.getBuffer(), compressedOut.getSize());
             }
-            break; 
+            break;
     }
 
 
@@ -560,17 +562,17 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
 }
 
 // Needs error checking
-bool Rarc::Load(bStream::CStream* stream){
-    bStream::CMemoryStream decompressedArcStream(1, bStream::Endianess::Big, bStream::OpenMode::Out);
-    
+bool Rarc::Load(bStream::CStream* stream, bStream::Endianess endianess){
+    bStream::CMemoryStream decompressedArcStream(1, endianess, bStream::OpenMode::Out);
+
     bStream::CStream* rarcStream = stream;
-    
+
     uint32_t magic = stream->readUInt32();
 
     if(magic == 1499560496){
         decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
         Compression::Yaz0::Decompress(stream, &decompressedArcStream);
-        decompressedArcStream.changeMode(bStream::OpenMode::In);    
+        decompressedArcStream.changeMode(bStream::OpenMode::In);
         rarcStream = &decompressedArcStream;
     } else if(magic == 1499560240){
         decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
@@ -586,8 +588,7 @@ bool Rarc::Load(bStream::CStream* stream){
     if(magic != 1380012611){
         return false;
     }
-    
-    
+
     rarcStream->seek(8); // Skip unneeded stuff
 
     uint32_t fsOffset = rarcStream->readUInt32();
@@ -605,7 +606,7 @@ bool Rarc::Load(bStream::CStream* stream){
     uint32_t strTableOffset = rarcStream->readUInt32();
 
     for(std::size_t i = 0; i < dirCount; i++) mDirectories.push_back(Folder::Create(GetPtr()));
- 
+
     rarcStream->seek(dirOffset + fsOffset);
     for(std::size_t i = 0; i < dirCount; i++)
     {
@@ -619,7 +620,7 @@ bool Rarc::Load(bStream::CStream* stream){
         uint32_t fileoff = rarcStream->readUInt32();
 
         std::size_t readReturn = rarcStream->tell();
-        
+
         rarcStream->seek(strTableOffset + fsOffset + nameOffset);
         char c;
         std::string dirName;
@@ -645,11 +646,11 @@ bool Rarc::Load(bStream::CStream* stream){
             uint32_t fileNameOffset = fileAttrs & 0x00FFFFFF;
             uint8_t attr = (fileAttrs >> 24) & 0xFF;
             uint32_t start = rarcStream->readUInt32();
-            
+
             uint32_t fileSize = rarcStream->readUInt32();
 
             std::size_t readReturn = rarcStream->tell();
-            
+
             rarcStream->seek(strTableOffset + fsOffset + fileNameOffset);
 
             char c;
@@ -659,13 +660,13 @@ bool Rarc::Load(bStream::CStream* stream){
             }
 
             rarcStream->seek(readReturn);
-            
+
             rarcStream->skip(4);
 
             if(attr & 0x01){
-                
+
                 unsigned char* fileData = new unsigned char[fileSize];
-                
+
                 std::size_t pos = rarcStream->tell();
                 rarcStream->seek(fsOffset + fsSize + start);
                 rarcStream->readBytesTo(fileData, fileSize);
@@ -674,8 +675,8 @@ bool Rarc::Load(bStream::CStream* stream){
                 file->SetName(name);
                 file->SetData(fileData, fileSize);
                 folder->AddFile(file);
-                
-                delete[] fileData;                
+
+                delete[] fileData;
             } else if(attr & 0x02) {
                 if(start != -1 && name != ".." && name != "."){
                     folder->AddSubdirectory(mDirectories[start]);
