@@ -229,7 +229,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
                 if(ch >= folderName.size()) break;
                 temp[ch] = toupper(folderName[ch]);
             }
-            dirStream.writeBytes((uint8_t*)temp, 4);
+            dirStream.writeUInt32(*(uint32_t*)temp); // this is really not great
         }
 
         dirStream.writeUInt32(stringTable[folderName]); // ??????
