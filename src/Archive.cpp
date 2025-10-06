@@ -107,7 +107,7 @@ bool File::MountAsArchive(){
     std::shared_ptr<Rarc> arc =  Rarc::Create();
 
     // There needs to be some way to specify endian here, maybe check magic and load it smart?
-    bStream::CMemoryStream stream(mData, mSize, bStream::Endianess::Big, bStream::OpenMode::In);
+    bStream::CMemoryStream stream(mData, mSize, mArchive.lock()->ByteOrder(), bStream::OpenMode::In);
 
     if(arc->Load(&stream)){
         mMountedArchive = arc;
@@ -165,7 +165,7 @@ std::map<std::string, uint32_t> Rarc::CalculateArchiveSizes(){
 }
 
 
-void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compression, uint8_t compressionLevel, bool padCompressed, bStream::Endianess endianess){
+void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compression, uint8_t compressionLevel, bool padCompressed){
 
     std::map<std::string, uint32_t> archiveSizes = CalculateArchiveSizes();
 
@@ -179,12 +179,12 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
     uint8_t* strTableChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"];
     uint8_t* fileDataChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"] + archiveSizes["strTable"];
 
-    bStream::CMemoryStream headerStream(archiveData, 0x20, endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream headerStream(archiveData, 0x20, mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], mArchiveOrder, bStream::OpenMode::Out);
 
     // Generate String Table
 
@@ -332,16 +332,17 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
     switch(compression){
         case Compression::Format::None:
             {
-                bStream::CFileStream outFile(path.string(), endianess, bStream::OpenMode::Out);
+                bStream::CFileStream outFile(path.string(), mArchiveOrder, bStream::OpenMode::Out);
                 outFile.writeBytes(archiveData, archiveSizes["total"]);
                 if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
             }
             break;
 
+        // Compresison container, as far as I can tell, is always BE
         case Compression::Format::YAY0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
-                bStream::CFileStream outFile(path.string(), endianess, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
+                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yay0::Compress(&archiveOut, &outFile);
                 if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
@@ -349,8 +350,8 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
             break;
         case Compression::Format::YAZ0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
-                bStream::CFileStream outFile(path.string(), endianess, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
+                bStream::CFileStream outFile(path.string(), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yaz0::Compress(&archiveOut, &outFile, compressionLevel);
                 if(padCompressed) while(outFile.tell() < Util::AlignTo(outFile.getSize(), 0x20)) { outFile.writeUInt8(0); }
@@ -362,7 +363,7 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
     delete[] archiveData;
 }
 
-void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, uint8_t compressionLevel, bool padCompressed, bStream::Endianess endianess){
+void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, uint8_t compressionLevel, bool padCompressed){
     std::map<std::string, uint32_t> archiveSizes = CalculateArchiveSizes();
 
     uint8_t* archiveData = new uint8_t[archiveSizes["total"]];
@@ -374,12 +375,12 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
     uint8_t* strTableChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"];
     uint8_t* fileDataChunk = archiveData + 0x40 + archiveSizes["dirEntries"] + archiveSizes["fileEntries"] + archiveSizes["strTable"];
 
-    bStream::CMemoryStream headerStream(archiveData, 0x20, endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], endianess, bStream::OpenMode::Out);
-    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], endianess, bStream::OpenMode::Out);
+    bStream::CMemoryStream headerStream(archiveData, 0x20, mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileSystemStream(fileSystemChunk, 0x20, mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream dirStream(dirChunk, archiveSizes["dirEntries"], mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileStream(fileChunk, archiveSizes["fileEntries"], mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream stringTableStream(strTableChunk, archiveSizes["strTable"], mArchiveOrder, bStream::OpenMode::Out);
+    bStream::CMemoryStream fileDataStream(fileDataChunk, archiveSizes["fileData"], mArchiveOrder, bStream::OpenMode::Out);
 
     // Generate String Table
 
@@ -535,8 +536,8 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
 
         case Compression::Format::YAY0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
-                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), endianess, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
+                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yay0::Compress(&archiveOut, &compressedOut);
 
@@ -546,8 +547,8 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
             break;
         case Compression::Format::YAZ0:
             {
-                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], endianess, bStream::OpenMode::In);
-                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), endianess, bStream::OpenMode::Out);
+                bStream::CMemoryStream archiveOut(archiveData, archiveSizes["total"], bStream::Endianess::Big, bStream::OpenMode::In);
+                bStream::CMemoryStream compressedOut(static_cast<std::size_t>(archiveSizes["total"]), bStream::Endianess::Big, bStream::OpenMode::Out);
 
                 Compression::Yaz0::Compress(&archiveOut, &compressedOut, compressionLevel);
 
@@ -562,19 +563,21 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
 }
 
 // Needs error checking
-bool Rarc::Load(bStream::CStream* stream, bStream::Endianess endianess){
-    bStream::CMemoryStream decompressedArcStream(1, endianess, bStream::OpenMode::Out);
+bool Rarc::Load(bStream::CStream* stream){
+    bStream::CMemoryStream decompressedArcStream(1, bStream::Endianess::Big, bStream::OpenMode::Out);
 
     bStream::CStream* rarcStream = stream;
 
+    stream->setOrder(bStream::Endianess::Big);
+
     uint32_t magic = stream->readUInt32();
 
-    if(magic == 1499560496){
+    if(magic == 'Yaz0'){
         decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
         Compression::Yaz0::Decompress(stream, &decompressedArcStream);
         decompressedArcStream.changeMode(bStream::OpenMode::In);
         rarcStream = &decompressedArcStream;
-    } else if(magic == 1499560240){
+    } else if(magic == 'Yay0'){
         decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
         Compression::Yay0::Decompress(stream, &decompressedArcStream);
         decompressedArcStream.changeMode(bStream::OpenMode::In);
@@ -585,7 +588,12 @@ bool Rarc::Load(bStream::CStream* stream, bStream::Endianess endianess){
 
     magic = rarcStream->readUInt32();
 
-    if(magic != 1380012611){
+    if(magic == 'CRAR'){
+        rarcStream->setOrder(bStream::Endianess::Little);
+        mArchiveOrder = bStream::Endianess::Little;
+    }
+
+    if(magic != 'RARC' && magic != 'CRAR'){
         return false;
     }
 

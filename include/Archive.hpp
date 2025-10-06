@@ -1,13 +1,13 @@
 #pragma once
 
-#include <Util.hpp>
-#include <bstream.h>
 #include <filesystem>
-#include <Compression.hpp>
 #include <algorithm>
 #include <memory>
 #include <vector>
 #include <map>
+#include <bstream.h>
+#include <Util.hpp>
+#include <Compression.hpp>
 
 namespace Archive {
     class Rarc;
@@ -152,13 +152,17 @@ namespace Archive {
     private:
         friend class Folder;
         std::vector<std::shared_ptr<Folder>> mDirectories;
-
+        bStream::Endianess mArchiveOrder { bStream::Endianess::Big };
         std::map<std::string, uint32_t> CalculateArchiveSizes();
 
     public:
-        bool Load(bStream::CStream* stream, bStream::Endianess endianess=bStream::Endianess::Big);
-        void Save(std::vector<uint8_t>& buffer, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false, bStream::Endianess endianess=bStream::Endianess::Big);
-        void SaveToFile(std::filesystem::path path, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false, bStream::Endianess endianess=bStream::Endianess::Big);
+        bool Load(bStream::CStream* stream);
+        void Save(std::vector<uint8_t>& buffer, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false);
+        void SaveToFile(std::filesystem::path path, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false);
+
+        // Set if this should be a BE or LE rarc
+        void SetByteOrder(bStream::Endianess order) { mArchiveOrder = order; }
+        bStream::Endianess ByteOrder() { return mArchiveOrder; }
 
         // Directories should all be children of root
         std::shared_ptr<Folder> GetRoot(){ return mDirectories[0]; }
