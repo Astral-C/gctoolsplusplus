@@ -108,7 +108,7 @@ bool File::MountAsArchive(){
     std::shared_ptr<Rarc> arc =  Rarc::Create();
 
     // There needs to be some way to specify endian here, maybe check magic and load it smart?
-    bStream::CMemoryStream stream(mData, mSize, mArchive.lock()->ByteOrder(), bStream::OpenMode::In);
+    bStream::CMemoryStream stream(mData, mSize, bStream::Endianess::Big, bStream::OpenMode::In);
 
     if(arc->Load(&stream)){
         mMountedArchive = arc;
