@@ -160,6 +160,8 @@ namespace Archive {
         void Save(std::vector<uint8_t>& buffer, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false);
         void SaveToFile(std::filesystem::path path, Compression::Format compression=Compression::Format::None, uint8_t compressionLevel=7, bool padCompressed=false);
 
+        uint32_t Size() { return CalculateArchiveSizes()["total"]; };
+
         // Set if this should be a BE or LE rarc
         void SetByteOrder(bStream::Endianess order) { mArchiveOrder = order; }
         bStream::Endianess ByteOrder() { return mArchiveOrder; }
