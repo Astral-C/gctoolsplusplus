@@ -3,6 +3,7 @@
 #include "bstream.h"
 #include <algorithm>
 #include <map>
+#include <utility>
 
 namespace Archive {
 
@@ -229,7 +230,15 @@ void Rarc::SaveToFile(std::filesystem::path path, Compression::Format compressio
                 if(ch >= folderName.size()) break;
                 temp[ch] = toupper(folderName[ch]);
             }
-            dirStream.writeUInt32(*(uint32_t*)temp); // this is really not great
+            // This is a hack, these are technically ints but if we treat them that way the expected IDs end up broken in BE exports.
+            // There is probably a better way to do this but im too lazy to fix it right now
+            if(dirStream.getOrder() == bStream::Endianess::Big){
+                dirStream.writeBytes(reinterpret_cast<uint8_t*>(temp), 4);
+            } else {
+                std::swap(temp[0], temp[3]);
+                std::swap(temp[1], temp[2]);
+                dirStream.writeBytes(reinterpret_cast<uint8_t*>(temp), 4);
+            }
         }
 
         dirStream.writeUInt32(stringTable[folderName]); // ??????
@@ -425,7 +434,15 @@ void Rarc::Save(std::vector<uint8_t>& buffer, Compression::Format compression, u
                 if(ch >= folderName.size()) break;
                 temp[ch] = toupper(folderName[ch]);
             }
-            dirStream.writeBytes((uint8_t*)temp, 4);
+            // This is a hack, these are technically ints but if we treat them that way the expected IDs end up broken in BE exports.
+            // There is probably a better way to do this but im too lazy to fix it right now
+            if(dirStream.getOrder() == bStream::Endianess::Big){
+                dirStream.writeBytes(reinterpret_cast<uint8_t*>(temp), 4);
+            } else {
+                std::swap(temp[0], temp[3]);
+                std::swap(temp[1], temp[2]);
+                dirStream.writeBytes(reinterpret_cast<uint8_t*>(temp), 4);
+            }
         }
 
         dirStream.writeUInt32(stringTable[folderName]); // ??????
@@ -568,16 +585,16 @@ bool Rarc::Load(bStream::CStream* stream){
 
     bStream::CStream* rarcStream = stream;
 
-    stream->setOrder(bStream::Endianess::Big);
+    if(stream->getOrder() != bStream::Endianess::Big) stream->setOrder(bStream::Endianess::Big);
 
     uint32_t magic = stream->readUInt32();
 
-    if(magic == 'Yaz0'){
+    if(magic == 0x59617A30){
         decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
         Compression::Yaz0::Decompress(stream, &decompressedArcStream);
         decompressedArcStream.changeMode(bStream::OpenMode::In);
         rarcStream = &decompressedArcStream;
-    } else if(magic == 'Yay0'){
+    } else if(magic == 0x59617930){
         decompressedArcStream.Reserve(Compression::GetDecompressedSize(stream));
         Compression::Yay0::Decompress(stream, &decompressedArcStream);
         decompressedArcStream.changeMode(bStream::OpenMode::In);
@@ -588,12 +605,12 @@ bool Rarc::Load(bStream::CStream* stream){
 
     magic = rarcStream->readUInt32();
 
-    if(magic == 'CRAR'){
+    if(magic == 0x43524152){
         rarcStream->setOrder(bStream::Endianess::Little);
         mArchiveOrder = bStream::Endianess::Little;
     }
 
-    if(magic != 'RARC' && magic != 'CRAR'){
+    if(magic != 0x52415243 && magic != 0x43524152){
         return false;
     }
 
